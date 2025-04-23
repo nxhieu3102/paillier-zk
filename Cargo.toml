@@ -15,7 +15,7 @@ generic-ec = { version = "0.4", features = ["udigest"] }
 rand_core = { version = "0.6", default-features = false }
 digest = "0.10"
 fast-paillier = "0.1"
-rug = { version = "1.21", default-features = false, features = ["integer", "rand"] }
+rug = { version = "1.27", default-features = false, features = ["integer", "rand"] }
 
 thiserror = "1"
 
