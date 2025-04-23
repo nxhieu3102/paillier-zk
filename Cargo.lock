@@ -281,8 +281,7 @@ dependencies = [
 [[package]]
 name = "fast-paillier"
 version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8da6ffbfab3f6dc72b28f6f33dc76705c1a56b2c119680c936d239990beb5ae6"
+source = "git+https://github.com/nxhieu3102/fast-paillier?branch=vy%2Foptimized-paillier#624035a41d56dcb8e3428265f960fe5bc6a7026f"
 dependencies = [
  "bytemuck",
  "rand_core",
