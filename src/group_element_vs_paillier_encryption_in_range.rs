@@ -241,10 +241,8 @@ pub mod interactive {
     ) -> Result<Proof, Error> {
         Ok(Proof {
             z1: (&pcomm.alpha + challenge * pdata.x).complete(),
-            z2: data
-                .key0
-                .n()
-                .combine(&pcomm.r, Integer::ONE, pdata.nonce, challenge)?,
+            // TODO: recheck
+            z2: (&pcomm.r + challenge * pdata.nonce).complete(),
             z3: (&pcomm.gamma + challenge * &pcomm.mu).complete(),
         })
     }

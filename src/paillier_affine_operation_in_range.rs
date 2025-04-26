@@ -341,14 +341,10 @@ pub mod interactive {
             z2: (&pcomm.beta + challenge * pdata.y).complete(),
             z3: (&pcomm.gamma + challenge * &pcomm.m).complete(),
             z4: (&pcomm.delta + challenge * &pcomm.mu).complete(),
-            w: data
-                .key0
-                .n()
-                .combine(&pcomm.r, Integer::ONE, pdata.nonce, challenge)?,
-            w_y: data
-                .key1
-                .n()
-                .combine(&pcomm.r_y, Integer::ONE, pdata.nonce_y, challenge)?,
+            // TODO: recheck
+            w: (&pcomm.r + challenge * pdata.nonce).complete(),
+            // TODO: recheck
+            w_y: (&pcomm.r_y + challenge * pdata.nonce_y).complete(),
         })
     }
 
@@ -509,6 +505,7 @@ pub mod non_interactive {
 
 #[cfg(test)]
 mod test {
+    use fast_paillier::AnyEncryptionKey;
     use generic_ec::{Curve, Point};
     use rug::{Complete, Integer};
     use sha2::Digest;
