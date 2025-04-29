@@ -11,6 +11,7 @@ keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+kzen-paillier = { git = "https://github.com/nxhieu3102/rust-paillier" }
 generic-ec = { version = "0.4", features = ["udigest"] }
 rand_core = { version = "0.6", default-features = false }
 digest = "0.10"
