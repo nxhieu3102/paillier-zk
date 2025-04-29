@@ -299,10 +299,12 @@ pub mod test {
 
     use super::IntegerExt;
 
-    pub fn random_key<R: rand_core::RngCore>(rng: &mut R) -> Option<fast_paillier::DecryptionKey> {
-        let p = generate_blum_prime(rng, 1024);
-        let q = generate_blum_prime(rng, 1024);
-        fast_paillier::DecryptionKey::from_primes(p, q).ok()
+    pub fn random_key<R: rand_core::RngCore + rand_core::CryptoRng>(
+        rng: &mut R,
+    ) -> Option<fast_paillier::DecryptionKey> {
+        let n_size = 2048;
+        let a_size = 448;
+        fast_paillier::DecryptionKey::generate(rng, n_size, a_size).ok()
     }
 
     pub fn aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {

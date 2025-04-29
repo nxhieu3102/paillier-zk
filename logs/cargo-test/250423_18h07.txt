@@ -1,0 +1,62 @@
+branch: vy/replace-optimized-paillier
+last commit: update rug version
+
+fast-paillier (update serde for paillier key)
+-------------------------
+
+running 21 tests
+test common::_test::to_scalar_encoding ... ok
+test common::_test::signed_modulo ... ok
+test no_small_factor::test::test_sqrt ... ok
+test multiexp::test::multiexp_works ... ok
+test paillier_blum_modulus::test::failing ... ok
+test paillier_blum_modulus::test::passing ... ok
+test no_small_factor::test::passing ... ok
+test no_small_factor::test::failing ... ok
+test common::_test::multiexp ... ok
+test group_element_vs_paillier_encryption_in_range::test::failing_million has been running for over 60 seconds
+test group_element_vs_paillier_encryption_in_range::test::failing_p256 has been running for over 60 seconds
+test group_element_vs_paillier_encryption_in_range::test::passing_million has been running for over 60 seconds
+test group_element_vs_paillier_encryption_in_range::test::passing_p256 has been running for over 60 seconds
+test paillier_affine_operation_in_range::test::failing_million_add has been running for over 60 seconds
+test paillier_affine_operation_in_range::test::failing_million_mul has been running for over 60 seconds
+test paillier_affine_operation_in_range::test::failing_p256_add has been running for over 60 seconds
+test paillier_affine_operation_in_range::test::failing_p256_mul has been running for over 60 seconds
+test paillier_affine_operation_in_range::test::passing_million has been running for over 60 seconds
+test paillier_affine_operation_in_range::test::passing_p256 has been running for over 60 seconds
+test paillier_encryption_in_range::test::failing has been running for over 60 seconds
+test paillier_encryption_in_range::test::passing has been running for over 60 seconds
+test group_element_vs_paillier_encryption_in_range::test::passing_million ... FAILED
+test group_element_vs_paillier_encryption_in_range::test::failing_p256 ... FAILED
+test paillier_encryption_in_range::test::failing ... FAILED
+test paillier_encryption_in_range::test::passing ... FAILED
+test group_element_vs_paillier_encryption_in_range::test::passing_p256 ... FAILED
+test paillier_affine_operation_in_range::test::passing_p256 ... FAILED
+test paillier_affine_operation_in_range::test::failing_p256_mul ... FAILED
+test group_element_vs_paillier_encryption_in_range::test::failing_million ... FAILED
+test paillier_affine_operation_in_range::test::failing_p256_add ... FAILED
+test paillier_affine_operation_in_range::test::failing_million_mul ... FAILED
+test paillier_affine_operation_in_range::test::passing_million ... FAILED
+test paillier_affine_operation_in_range::test::failing_million_add ... FAILED
+
+failures:
+
+thread 'paillier_affine_operation_in_range::test::failing_million_add' panicked at src/paillier_affine_operation_in_range.rs:599:18:
+proof should not fail with: EqualityCheck(1)
+
+failures:
+    group_element_vs_paillier_encryption_in_range::test::failing_million
+    group_element_vs_paillier_encryption_in_range::test::failing_p256
+    group_element_vs_paillier_encryption_in_range::test::passing_million
+    group_element_vs_paillier_encryption_in_range::test::passing_p256
+    paillier_affine_operation_in_range::test::failing_million_add
+    paillier_affine_operation_in_range::test::failing_million_mul
+    paillier_affine_operation_in_range::test::failing_p256_add
+    paillier_affine_operation_in_range::test::failing_p256_mul
+    paillier_affine_operation_in_range::test::passing_million
+    paillier_affine_operation_in_range::test::passing_p256
+    paillier_encryption_in_range::test::failing
+    paillier_encryption_in_range::test::passing
+
+test result: FAILED. 9 passed; 12 failed; 0 ignored; 0 measured; 0 filtered out; finished in 988.77s
+

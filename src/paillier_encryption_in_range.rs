@@ -200,6 +200,7 @@ pub mod interactive {
 
         let alpha = Integer::from_rng_pm(&two_to_l_plus_e, rng);
         let mu = Integer::from_rng_pm(&hat_n_at_two_to_l, rng);
+        // TODO: r can be a random from natural set (Z_N)
         let r = Integer::gen_invertible(data.key.n(), rng);
         let gamma = Integer::from_rng_pm(&hat_n_at_two_to_l_plus_e, rng);
 
@@ -226,12 +227,8 @@ pub mod interactive {
         challenge: &Challenge,
     ) -> Result<Proof, Error> {
         let z1 = (&private_commitment.alpha + (challenge * pdata.plaintext)).complete();
-        let nonce_to_challenge_mod_n: Integer = pdata
-            .nonce
-            .pow_mod_ref(challenge, data.key.n())
-            .ok_or(BadExponent::undefined())?
-            .into();
-        let z2 = (&private_commitment.r * nonce_to_challenge_mod_n).modulo(data.key.n());
+        // TODO: recheck
+        let z2 = (&private_commitment.r + (challenge * pdata.nonce)).complete();
         let z3 = (&private_commitment.gamma + (challenge * &private_commitment.mu)).complete();
         Ok(Proof { z1, z2, z3 })
     }

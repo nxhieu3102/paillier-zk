@@ -566,7 +566,7 @@ checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
 [[package]]
 name = "fast-paillier"
 version = "0.1.0"
-source = "git+https://github.com/nxhieu3102/fast-paillier#b5c022f219bb19e99676963b22837e3da27ca218"
+source = "git+https://github.com/nxhieu3102/fast-paillier#07207b0c449480c77ffc804c35e859d0b69481ca"
 dependencies = [
  "bytemuck",
  "curv-kzen",
@@ -1106,6 +1106,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "libm"
+version = "0.2.13"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c9627da5196e5d8ed0b0495e61e518847578da83483c37288316d9b2e03a7f72"
+
+[[package]]
 name = "num-bigint"
 version = "0.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1568,15 +1574,6 @@ dependencies = [
  "gmp-mpfr-sys",
  "libc",
  "libm",
- "serde",
-]
-
-[[package]]
-name = "rust-gmp"
-version = "0.5.1"
-source = "git+https://github.com/nxhieu3102/rust-gmp#a5421942b8c6f70d5ac7ad40125dbcd6b7838869"
-dependencies = [
- "num-traits",
  "serde",
 ]
 
