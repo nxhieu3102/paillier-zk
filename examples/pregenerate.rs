@@ -68,8 +68,8 @@ fn generate_paillier_key(
     let p = generate_blum_prime(rng, 1536);
     let q = generate_blum_prime(rng, 1536);
 
-    let dk: fast_paillier::DecryptionKey =
-        fast_paillier::DecryptionKey::from_primes(p, q).context("generated p, q are invalid")?;
+    // TODO: replace with n_size and a_size
+    let dk: fast_paillier::DecryptionKey = fast_paillier::DecryptionKey::sample();
     let ek = dk.encryption_key();
 
     if let Some(path) = output_dk {

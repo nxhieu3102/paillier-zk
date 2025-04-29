@@ -281,6 +281,7 @@ dependencies = [
 [[package]]
 name = "fast-paillier"
 version = "0.1.0"
+source = "git+https://github.com/nxhieu3102/fast-paillier#07207b0c449480c77ffc804c35e859d0b69481ca"
 dependencies = [
  "bytemuck",
  "rand_core",

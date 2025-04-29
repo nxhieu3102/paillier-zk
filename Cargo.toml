@@ -14,8 +14,7 @@ keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 generic-ec = { version = "0.4", features = ["udigest"] }
 rand_core = { version = "0.6", default-features = false }
 digest = "0.10"
-# fast-paillier = { git = "https://github.com/nxhieu3102/fast-paillier", branch = "vy/optimized-paillier" }
-fast-paillier = { path = "../fast-paillier" }
+fast-paillier = { git = "https://github.com/nxhieu3102/fast-paillier" }
 rug = { version = "1.27", default-features = false, features = ["integer", "rand"] }
 
 thiserror = "1"
