@@ -234,7 +234,7 @@ pub mod interactive {
 
     /// Compute proof for given data and prior protocol values
     pub fn prove<C: Curve>(
-        data: Data<C>,
+        _data: Data<C>,
         pdata: PrivateData,
         pcomm: &PrivateCommitment,
         challenge: &Challenge,
