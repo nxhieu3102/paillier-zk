@@ -176,7 +176,7 @@ pub mod interactive {
 
     use crate::{
         common::{fail_if, fail_if_ne, InvalidProofReason},
-        BadExponent, Error,
+        Error,
     };
 
     use crate::common::{IntegerExt, InvalidProof};
@@ -221,7 +221,7 @@ pub mod interactive {
 
     /// Compute proof for given data and prior protocol values
     pub fn prove(
-        data: Data,
+        _data: Data,
         pdata: PrivateData,
         private_commitment: &PrivateCommitment,
         challenge: &Challenge,
