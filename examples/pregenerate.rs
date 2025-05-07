@@ -2,6 +2,8 @@
 //!
 //! This example shows how aux data can be generated to set up proofs. Generated data is used by doctests.
 
+// cargo run --example pregenerate --features=__internal_doctest
+
 use anyhow::{Context, Result};
 use rug::{Complete, Integer};
 
