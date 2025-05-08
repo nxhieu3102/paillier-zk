@@ -8,6 +8,8 @@
 //! larger than `sqrt(N) * 2^l`, or equivalently no smaller than `sqrt(N) /
 //! 2^l`
 //!
+//! Because of key generation algorithm of optimized paillier, l should be at least 3
+//!
 //! ## Example
 //!
 //! ```rust
@@ -91,6 +93,7 @@ pub use crate::common::{Aux, InvalidProof};
 pub struct SecurityParams {
     /// l in paper, security parameter for bit size of plaintext: it needs to
     /// differ from sqrt(n) not more than by 2^l
+    /// l should be at least 3
     pub l: usize,
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
