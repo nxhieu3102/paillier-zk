@@ -98,7 +98,7 @@
 //! If the verification succeeded, verifier can continue communication with prover
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce, Plaintext};
-use generic_ec::{Curve, Point, SecretScalar, Scalar};
+use generic_ec::{Curve, Point, Scalar};
 use rug::Integer;
 
 #[cfg(feature = "serde")]
@@ -196,7 +196,7 @@ pub mod interactive {
 
     use crate::{
         common::{fail_if, fail_if_ne, InvalidProofReason},
-        BadExponent, Error,
+        Error,
     };
 
     use crate::common::{IntegerExt, InvalidProof};
@@ -243,20 +243,14 @@ pub mod interactive {
 
     /// Compute proof for given data and prior protocol values
     pub fn prove<E: Curve>(
-        data: Data<E>,
+        _data: Data<E>,
         pdata: PrivateData<E>,
         private_commitment: &PrivateCommitment<E>,
         challenge: &Challenge,
     ) -> Result<Proof<E>, Error> {
         let z1 = (&private_commitment.alpha + (challenge * pdata.plaintext)).complete();
-        let z2 = {
-            let nonce_to_challenge_mod_n: Integer = pdata
-                .nonce
-                .pow_mod_ref(challenge, data.key.n())
-                .ok_or(BadExponent::undefined())?
-                .into();
-            (&private_commitment.r * nonce_to_challenge_mod_n).modulo(data.key.n())
-        };
+        // TODO: recheck
+        let z2 = (&private_commitment.r + (challenge * pdata.nonce)).complete();
         let z3 = (&private_commitment.gamma + (challenge * &private_commitment.mu)).complete();
         let w = private_commitment.beta + (challenge.to_scalar() * pdata.b);
         Ok(Proof { z1, z2, z3, w })

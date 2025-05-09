@@ -74,7 +74,7 @@
 //!
 //! If the verification succeeded, verifier can continue communication with prover
 
-use generic_ec::{Curve, Point, Scalar, SecretScalar};
+use generic_ec::{Curve, Point, Scalar};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -266,7 +266,7 @@ pub mod non_interactive {
 
 #[cfg(test)]
 mod test {
-    use generic_ec::{Curve, Point, Scalar, SecretScalar};
+    use generic_ec::{Curve, Point, Scalar};
     use sha2::Digest;
 
     use crate::common::InvalidProofReason;
