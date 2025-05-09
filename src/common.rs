@@ -307,6 +307,10 @@ pub mod test {
         fast_paillier::DecryptionKey::generate(rng, n_size, a_size).ok()
     }
 
+    pub fn sample_key() -> fast_paillier::DecryptionKey {
+        fast_paillier::DecryptionKey::sample_128()
+    }
+
     pub fn aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {
         let p = generate_blum_prime(rng, 1024);
         let q = generate_blum_prime(rng, 1024);

@@ -12,7 +12,7 @@ keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 
 [dependencies]
 generic-ec = { version = "0.4", features = ["udigest"] }
-rand_core = { version = "0.6", default-features = false }
+rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
 digest = "0.10"
 fast-paillier = { git = "https://github.com/nxhieu3102/fast-paillier" }
 rug = { version = "1.27", default-features = false, features = [
@@ -32,6 +32,7 @@ udigest = { version = "0.2.1", default-features = false, features = [
     "derive",
 ] }
 rand_hash = "0.1"
+bytemuck = "1.23.0"
 
 [dev-dependencies]
 generic-ec = { version = "0.4", features = ["udigest", "all-curves"] }

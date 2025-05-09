@@ -128,11 +128,12 @@ pub struct Data<'a, C: Curve> {
     /// $C$ in paper
     #[udigest(as = &crate::common::encoding::Integer)]
     pub ciphertext: &'a Ciphertext,
-    /// $A$ in paper
+    /// $A = g^a$ is El-Gamal commitment generator ~ g_2 (Batch Range Proof)
+    /// g_1 is curve's generator
     pub a: &'a Point<C>,
-    /// $B$ in paper
+    /// $B = g^b = g_1^b$ - b is the prover's secret scalar (random)
     pub b: &'a Point<C>,
-    /// $X$ in paper
+    /// $X = g^{a b + x} = g_1^x * g_2^b$ - x is the plaintext (secret)
     pub x: &'a Point<C>,
 }
 
