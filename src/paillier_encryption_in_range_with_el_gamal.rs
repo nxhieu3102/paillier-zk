@@ -98,7 +98,7 @@
 //! If the verification succeeded, verifier can continue communication with prover
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce, Plaintext};
-use generic_ec::{Curve, Point, SecretScalar, Scalar};
+use generic_ec::{Curve, Point, Scalar};
 use rug::Integer;
 
 #[cfg(feature = "serde")]
@@ -116,6 +116,9 @@ pub struct SecurityParams {
     pub l: usize,
     /// $\varepsilon$ in paper, slackness parameter
     pub epsilon: usize,
+    /// q in paper. Security parameter for challenge
+    #[udigest(as = crate::common::encoding::Integer)]
+    pub q: Integer,
 }
 
 /// Public data that both parties know
@@ -197,7 +200,7 @@ pub mod interactive {
 
     use crate::{
         common::{fail_if, fail_if_ne, InvalidProofReason},
-        BadExponent, Error,
+        Error,
     };
 
     use crate::common::{IntegerExt, InvalidProof};
@@ -244,20 +247,14 @@ pub mod interactive {
 
     /// Compute proof for given data and prior protocol values
     pub fn prove<E: Curve>(
-        data: Data<E>,
+        _data: Data<E>,
         pdata: PrivateData<E>,
         private_commitment: &PrivateCommitment<E>,
         challenge: &Challenge,
     ) -> Result<Proof<E>, Error> {
         let z1 = (&private_commitment.alpha + (challenge * pdata.plaintext)).complete();
-        let z2 = {
-            let nonce_to_challenge_mod_n: Integer = pdata
-                .nonce
-                .pow_mod_ref(challenge, data.key.n())
-                .ok_or(BadExponent::undefined())?
-                .into();
-            (&private_commitment.r * nonce_to_challenge_mod_n).modulo(data.key.n())
-        };
+        // TODO: recheck
+        let z2 = (&private_commitment.r + (challenge * pdata.nonce)).complete();
         let z3 = (&private_commitment.gamma + (challenge * &private_commitment.mu)).complete();
         let w = private_commitment.beta + (challenge.to_scalar() * pdata.b);
         Ok(Proof { z1, z2, z3, w })
@@ -320,8 +317,8 @@ pub mod interactive {
     /// Generate random challenge
     ///
     /// `security` parameter is used to generate challenge in correct range
-    pub fn challenge<E: Curve>(rng: &mut impl RngCore) -> Challenge {
-        Integer::from_rng_pm(&Integer::curve_order::<E>(), rng)
+    pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
+        Integer::from_rng_pm(&security.q, rng)
     }
 }
 
@@ -383,7 +380,7 @@ pub mod non_interactive {
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        super::interactive::challenge::<E>(&mut rng)
+        super::interactive::challenge(security, &mut rng)
     }
 }
 
@@ -439,6 +436,7 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 300,
+            q: (Integer::ONE << 128_u32).complete() - 1,
         };
         let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
         run_with::<C, D>(&mut rng, security, plaintext).expect("proof failed");
@@ -449,6 +447,7 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 300,
+            q: (Integer::ONE << 128_u32).complete() - 1,
         };
         let plaintext = (Integer::ONE << (security.l + security.epsilon)).complete() + 1;
         let r = run_with::<C, D>(&mut rng, security, plaintext).expect_err("proof should not pass");
