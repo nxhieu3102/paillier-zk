@@ -116,6 +116,9 @@ pub struct SecurityParams {
     pub l: usize,
     /// $\varepsilon$ in paper, slackness parameter
     pub epsilon: usize,
+    /// q in paper. Security parameter for challenge
+    #[udigest(as = crate::common::encoding::Integer)]
+    pub q: Integer,
 }
 
 /// Public data that both parties know
@@ -313,8 +316,8 @@ pub mod interactive {
     /// Generate random challenge
     ///
     /// `security` parameter is used to generate challenge in correct range
-    pub fn challenge<E: Curve>(rng: &mut impl RngCore) -> Challenge {
-        Integer::from_rng_pm(&Integer::curve_order::<E>(), rng)
+    pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
+        Integer::from_rng_pm(&security.q, rng)
     }
 }
 
@@ -376,7 +379,7 @@ pub mod non_interactive {
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        super::interactive::challenge::<E>(&mut rng)
+        super::interactive::challenge(security, &mut rng)
     }
 }
 
@@ -432,6 +435,7 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 300,
+            q: (Integer::ONE << 128_u32).complete() - 1,
         };
         let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
         run_with::<C, D>(&mut rng, security, plaintext).expect("proof failed");
@@ -442,6 +446,7 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 300,
+            q: (Integer::ONE << 128_u32).complete() - 1,
         };
         let plaintext = (Integer::ONE << (security.l + security.epsilon)).complete() + 1;
         let r = run_with::<C, D>(&mut rng, security, plaintext).expect_err("proof should not pass");
