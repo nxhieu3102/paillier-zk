@@ -469,8 +469,8 @@ pub mod non_interactive {
         let tag = "paillier_zk.encryption_in_range_with_el_gamal.ni_challenge";
         let seed = udigest::inline_struct!(tag {
             shared_state,
-            // aux: aux.digest_public_data(),
-            // security,
+            aux: aux.digest_public_data(),
+            security,
             // data,
             // commitment,
         });
