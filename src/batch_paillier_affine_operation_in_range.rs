@@ -204,7 +204,6 @@ pub struct PublicData<'a, C: Curve> {
 }
 
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct PrivateElement<'a> {
     pub x: &'a Integer,
     pub y: &'a Integer,
@@ -214,7 +213,6 @@ pub struct PrivateElement<'a> {
 
 /// Private data of prover
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct PrivateData<'a> {
     pub batch: Vec<PrivateElement<'a>>,
 }
@@ -397,11 +395,11 @@ pub mod interactive {
             });
 
         let z3 = pcomm
-            .alpha
+            .gamma
             .iter()
             .zip(challenge.iter())
             .zip(pcomm.m.iter())
-            .map(|((alpha_i, challenge_i), m_i)| (alpha_i + challenge_i * m_i).complete())
+            .map(|((gamma_i, challenge_i), m_i)| (gamma_i + challenge_i * m_i).complete())
             .collect();
 
         let z4 = pcomm
@@ -494,7 +492,7 @@ pub mod interactive {
         {
             let lhs = aux.combine(&proof.z2, &proof.z4)?;
             let rhs = commitment.t.iter().zip(challenge.iter()).fold(commitment.f.clone(), |acc, (t_i, challenge_i)| {
-                acc * t_i.clone().pow_mod(&challenge_i, &aux.rsa_modulo).unwrap()
+                (acc * t_i.clone().pow_mod(&challenge_i, &aux.rsa_modulo).unwrap()).modulo(&aux.rsa_modulo)
             });
 
             fail_if_ne(InvalidProofReason::EqualityCheck(5), lhs, rhs)?;
@@ -686,7 +684,7 @@ mod test {
         };
         let batch_size = 1;
         let x = Integer::from_rng_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
-        let y = (Integer::ONE << (security.l_y + security.epsilon)).complete() + 1;
+        let y = (Integer::ONE << (security.l_y + security.epsilon + 3)).complete() + 1;
         let r = run::<_, C, D>(&mut rng, security, x, y, batch_size ).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(7) => (),
@@ -704,7 +702,7 @@ mod test {
             t: 128,
         };
         let batch_size = 1;
-        let x = (Integer::ONE << (security.l_x + security.epsilon)).complete() + 1;
+        let x: Integer = (Integer::ONE << (security.l_x + security.epsilon + 3)).complete() + 1;
         let y = Integer::from_rng_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
         let r = run::<_, C, D>(&mut rng, security, x, y, batch_size).expect_err("proof should not pass");
         match r.reason() {
