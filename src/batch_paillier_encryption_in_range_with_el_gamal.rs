@@ -135,6 +135,19 @@ pub struct PublicElement<C: Curve> {
     pub x: Point<C>,
 }
 
+impl<C: Curve> PublicElement<C> {
+    /// Returns a stripped version of `PublicData` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.public_element" {
+            ciphertext: udigest::Bytes(self.ciphertext.to_digits::<u8>(order)),
+            b: udigest::Bytes(self.b.to_bytes(true)),
+            x: udigest::Bytes(self.x.to_bytes(true)),
+        })
+    }
+}
+
 /// Public data that both parties know
 #[derive(Debug, Clone, Copy)]
 // #[udigest(bound = "")]
@@ -147,6 +160,19 @@ pub struct PublicData<'a, C: Curve> {
     /// $A = g^a$ is El-Gamal commitment generator ~ g_2 (Batch Range Proof)
     /// g_1 is curve's generator
     pub a: &'a Point<C>,
+}
+
+impl<'a, C: Curve> PublicData<'a, C> {
+    /// Returns a stripped version of `PublicData` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.public_data" {
+            key: udigest::Bytes(self.key.n().to_digits::<u8>(order)),
+            a: udigest::Bytes(self.a.to_bytes(true)),
+            batch: self.batch.iter().map(|e| e.digest_public_data()).collect::<Vec<_>>(),
+        })
+    }
 }
 
 /// Single private element in a batch proof
@@ -177,6 +203,20 @@ pub struct Commitment<E: Curve> {
     pub d: Integer,
     pub y: Point<E>,
     pub z: Point<E>,
+}
+
+impl<C: Curve> Commitment<C> {
+    /// Returns a stripped version of `Commitment` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.commitment" {
+            s: self.s.iter().map(|e| udigest::Bytes(e.to_digits::<u8>(order))).collect::<Vec<_>>(),
+            d: udigest::Bytes(self.d.to_digits::<u8>(order)),
+            y: udigest::Bytes(self.y.to_bytes(true)),
+            z: udigest::Bytes(self.z.to_bytes(true)),
+        })
+    }
 }
 
 /// Prover's secret commitment nonce
@@ -461,18 +501,22 @@ pub mod non_interactive {
     pub fn challenge<E: Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
-        _data: PublicData<E>,
-        _commitment: &Commitment<E>,
+        data: PublicData<E>,
+        commitment: &Commitment<E>,
         security: &SecurityParams,
         batch_size: usize,
     ) -> Challenge {
         let tag = "paillier_zk.encryption_in_range_with_el_gamal.ni_challenge";
+        let aux = aux.digest_public_data();
+        let data = data.digest_public_data();
+        let commitment = commitment.digest_public_data();
+
         let seed = udigest::inline_struct!(tag {
             shared_state,
-            aux: aux.digest_public_data(),
+            aux,
             security,
-            // data,
-            // commitment,
+            data,
+            commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
         super::interactive::challenge(security, &mut rng, batch_size)
@@ -495,7 +539,7 @@ mod test {
     ) -> Result<(), crate::common::InvalidProof> {
         let aux = crate::common::test::aux(&mut rng);
 
-        let private_key = crate::common::test::random_key(&mut rng).unwrap();
+        let private_key = crate::common::test::sample_key();
         let a = Scalar::random(rng);
         let generator = Point::<E>::generator();
 
@@ -588,7 +632,7 @@ mod test {
         let batch_size = 2;
         let plaintext = vec![
             Integer::from_rng_pm(
-                &(Integer::ONE << (security.l + security.epsilon + 3)).complete(),
+                &(Integer::ONE << (security.l + security.epsilon + 4)).complete(),
                 &mut rng
             );
             batch_size

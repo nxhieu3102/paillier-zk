@@ -190,9 +190,22 @@ pub struct PublicElement<C: Curve> {
     pub y: Ciphertext,
 }
 
+impl<C: Curve> PublicElement<C> {
+    /// Returns a stripped version of `PublicData` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.public_element" {
+            c: udigest::Bytes(self.c.to_digits::<u8>(order)),
+            x: udigest::Bytes(self.x.to_bytes(true)),
+            d: udigest::Bytes(self.d.to_digits::<u8>(order)),
+            y: udigest::Bytes(self.y.to_digits::<u8>(order)),
+        })
+    }
+}
+
 /// Public data that both parties know
 #[derive(Debug, Clone)]
-// #[udigest(bound = "")]
 pub struct PublicData<'a, C: Curve> {
     /// N0 in paper, public key that C was encrypted on
     // #[udigest(as = crate::common::encoding::AnyEncryptionKey)]
@@ -201,6 +214,19 @@ pub struct PublicData<'a, C: Curve> {
     // #[udigest(as = crate::common::encoding::AnyEncryptionKey)]
     pub key1: &'a dyn AnyEncryptionKey,
     pub batch: Vec<PublicElement<C>>,
+}
+
+impl<'a, C: Curve> PublicData<'a, C> {
+    /// Returns a stripped version of `PublicData` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.public_data" {
+            key0: udigest::Bytes(self.key0.n().to_digits::<u8>(order)),
+            key1: udigest::Bytes(self.key1.n().to_digits::<u8>(order)),
+            batch: self.batch.iter().map(|e| e.digest_public_data()).collect::<Vec<_>>(),
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -231,6 +257,23 @@ pub struct Commitment<C: Curve> {
     pub t: Vec<Integer>,
     pub b_x: Vec<Point<C>>,
     pub b_y: Integer,
+}
+
+impl<C: Curve> Commitment<C> {
+    /// Returns a stripped version of `Commitment` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.commitment" {
+            a: udigest::Bytes(self.a.to_digits::<u8>(order)),
+            s: self.s.iter().map(|s| udigest::Bytes(s.to_digits::<u8>(order))).collect::<Vec<_>>(),
+            e: self.e.iter().map(|e| udigest::Bytes(e.to_digits::<u8>(order))).collect::<Vec<_>>(),
+            f: udigest::Bytes(self.f.to_digits::<u8>(order)),
+            t: self.t.iter().map(|t| udigest::Bytes(t.to_digits::<u8>(order))).collect::<Vec<_>>(),
+            b_x: self.b_x.iter().map(|b_x| udigest::Bytes(b_x.to_bytes(true))).collect::<Vec<_>>(),
+            b_y: udigest::Bytes(self.b_y.to_digits::<u8>(order)),
+        })
+    }
 }
 
 /// Prover's data accompanying the commitment. Kept as state between rounds in
@@ -626,19 +669,22 @@ pub mod non_interactive {
     pub fn challenge<C: Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
-        _data: PublicData<C>,
-        _commitment: &Commitment<C>,
+        data: PublicData<C>,
+        commitment: &Commitment<C>,
         security: &SecurityParams,
         batch_size: usize,
     ) -> Challenge {
         let tag = "paillier_zk.paillier_affine_operation_in_range.ni_challenge";
         let aux = aux.digest_public_data();
+        let data = data.digest_public_data();
+        let commitment = commitment.digest_public_data();
+
         let seed = udigest::inline_struct!(tag {
             shared_state,
-            // aux,
-            // security,
-            // data,
-            // commitment,
+            aux,
+            security,
+            data,
+            commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
         super::interactive::challenge(security, &mut rng, batch_size)
