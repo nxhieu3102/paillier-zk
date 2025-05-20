@@ -304,8 +304,8 @@ pub mod test {
     pub fn random_key<R: rand_core::RngCore + rand_core::CryptoRng>(
         rng: &mut R,
     ) -> Option<fast_paillier::DecryptionKey> {
-        let n_size = 2048;
-        let a_size = 448;
+        let n_size = 3072;
+        let a_size = 512;
         fast_paillier::DecryptionKey::generate(rng, n_size, a_size).ok()
     }
 
