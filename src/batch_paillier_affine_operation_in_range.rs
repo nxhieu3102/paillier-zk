@@ -1,158 +1,49 @@
-//! ZK-proof of paillier operation with group commitment in range. Called Пaff-g
-//! or Raff-g in the CGGMP21 paper.
+//! Zero-knowledge proof of a Paillier affine operation with range bounds and group commitment.
 //!
-//! ## Description
+//! This module implements a batched version of the Π_aff-g protocol (called Raff-g in the CGGMP21 paper).
+//! It allows a prover to efficiently prove knowledge of multiple plaintexts `x_i`, `y_i` used in encrypted
+//! affine computations of the form:
 //!
-//! A party P performs a paillier affine operation with C, Y, and X
-//! obtaining `D = C*X + Y`. `X` and `Y` are encrypted values of `x` and `y`. P
-//! then wants to prove that `y` and `x` are at most `L` and `L'` bits,
-//! correspondingly, and P doesn't want to disclose none of the plaintexts
+//! ```text
+//!     D_i = C_i * x_i + Enc(y_i)
+//! ```
 //!
-//! Given:
-//! - `key0`, `pkey0`, `key1`, `pkey1` - pairs of public and private keys in
-//!   paillier cryptosystem
-//! - `nonce_y`, `nonce` - nonces in paillier encryption
-//! - `x`, `y` - some numbers
-//! - `q`, `g` such that `<g> = Zq*` - prime order group
-//! - `C` is some ciphertext encrypted by `key0`
-//! - `Y = key1.encrypt(y, nonce_y)`
-//! - `X = g * x`
-//! - `D = oadd(enc(y, nonce), omul(x, C))` where `enc`, `oadd` and `omul` are
-//!   paillier encryption, homomorphic addition and multiplication with `key0`
+//! where:
+//! - `C_i` is an encrypted value under public key `key0`,
+//! - `Y_i = Enc_key1(y_i)` is `y_i` encrypted under a separate key `key1`,
+//! - `X_i = g * x_i` is a group commitment to `x_i` using generator `g` of a group of order `q`,
+//! - `D_i` is computed using Paillier homomorphic operations on `C_i` and `Enc_key0(y_i)`.
 //!
-//! Prove:
-//! - `bitsize(abs(x)) <= l_x`
-//! - `bitsize(abs(y)) <= l_y`
+//! The goal is to prove in zero-knowledge that all `x_i` and `y_i` are within known bitlength bounds (`l_x`, `l_y`),
+//! without revealing their values.
 //!
-//! Disclosing only: `key0`, `key1`, `C`, `D`, `Y`, `X`
+//! ## Protocol Inputs
+//!
+//! For each instance `i` in the batch, the prover uses:
+//! - Paillier public keys: `key0` for `C_i`, `D_i` and `key1` for `Y_i`
+//! - Plaintexts: `x_i`, `y_i`
+//! - Nonces used during encryption: `nonce_i`, `nonce_y_i`
+//! - Group parameters: `g`, `q` where `<g> = Zq*`
+//! - Encrypted values: `C_i`, `Y_i`, `X_i`, `D_i`
+//!
+//! The verifier only receives public data: `key0`, `key1`, all `C_i`, `D_i`, `X_i`, and `Y_i`.
+//!
+//! ## Batched Proof
+//!
+//! Unlike the original protocol which handles a single affine statement, this implementation supports
+//! proving and verifying multiple such statements in one batch. This greatly improves efficiency when
+//! dealing with many encrypted computations.
+//!
+//! ## Proves
+//!
+//! For each i-th element in the batch:
+//! - `|x_i| < 2^l_x`
+//! - `|y_i| < 2^l_y`
 //!
 //! ## Example
 //!
-//! ```rust
-//! use paillier_zk::{paillier_affine_operation_in_range as p, IntegerExt};
-//! use rug::{Integer, Complete};
-//! use generic_ec::{Point, curves::Secp256k1 as E};
-//! # mod pregenerated {
-//! #     use super::*;
-//! #     paillier_zk::load_pregenerated_data!(
-//! #         verifier_aux: p::Aux,
-//! #         someone_encryption_key0: fast_paillier::EncryptionKey,
-//! #         someone_encryption_key1: fast_paillier::EncryptionKey,
-//! #     );
-//! # }
-//!
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Prover and verifier have a shared protocol state
-//! let shared_state = "some shared state";
-//!
-//! let mut rng = rand_core::OsRng;
-//! # let mut rng = rand_dev::DevRng::new();
-//!
-//! // 0. Setup: prover and verifier share common Ring-Pedersen parameters:
-//!
-//! let aux: p::Aux = pregenerated::verifier_aux();
-//! let security = p::SecurityParams {
-//!     l_x: 256,
-//!     l_y: 848,
-//!     epsilon: 230,
-//!     q: (Integer::ONE << 128_u32).complete(),
-//! };
-//!
-//! // 1. Setup: prover prepares the paillier keys
-//!
-//! // C and D are encrypted by this key
-//! let key0: fast_paillier::EncryptionKey = pregenerated::someone_encryption_key0();
-//! // Y is encrypted using this key
-//! let key1: fast_paillier::EncryptionKey = pregenerated::someone_encryption_key1();
-//!
-//! // C is some number encrypted using key0. Neither of parties
-//! // need to know the plaintext
-//! let ciphertext_c = Integer::gen_invertible(&key0.nn(), &mut rng);
-//!
-//! // 2. Setup: prover prepares all plaintexts
-//!
-//! // x in paper
-//! let plaintext_x = Integer::from_rng_pm(
-//!     &(Integer::ONE << security.l_x).complete(),
-//!     &mut rng,
-//! );
-//! // y in paper
-//! let plaintext_y = Integer::from_rng_pm(
-//!     &(Integer::ONE << security.l_y).complete(),
-//!     &mut rng,
-//! );
-//!
-//! // 3. Setup: prover encrypts everything on correct keys and remembers some nonces
-//!
-//! // X in paper
-//! let ciphertext_x = Point::<E>::generator() * plaintext_x.to_scalar();
-//! // Y and ρ_y in paper
-//! let (ciphertext_y, nonce_y) = key1.encrypt_with_random(
-//!     &mut rng,
-//!     &(plaintext_y.signed_modulo(key1.n())),
-//! )?;
-//! // nonce is ρ in paper
-//! let (ciphertext_y_by_key1, nonce) = key0.encrypt_with_random(
-//!     &mut rng,
-//!     &(plaintext_y.signed_modulo(key0.n()))
-//! )?;
-//! // D in paper
-//! let ciphertext_d = key0
-//!     .oadd(
-//!         &key0.omul(&plaintext_x, &ciphertext_c)?,
-//!         &ciphertext_y_by_key1,
-//!     )?;
-//!
-//! // 4. Prover computes a non-interactive proof that plaintext_x and
-//! //    plaintext_y are at most `l_x` and `l_y` bits
-//!
-//! let data = p::Data {
-//!     key0: &key0,
-//!     key1: &key1,
-//!     c: &ciphertext_c,
-//!     d: &ciphertext_d,
-//!     x: &ciphertext_x,
-//!     y: &ciphertext_y,
-//! };
-//! let pdata = p::PrivateData {
-//!     x: &plaintext_x,
-//!     y: &plaintext_y,
-//!     nonce: &nonce,
-//!     nonce_y: &nonce_y,
-//! };
-//! let (commitment, proof) =
-//!     p::non_interactive::prove::<E, sha2::Sha256>(
-//!         &shared_state,
-//!         &aux,
-//!         data,
-//!         pdata,
-//!         &security,
-//!         &mut rng,
-//!     )?;
-//!
-//! // 5. Prover sends this data to verifier
-//!
-//! # use generic_ec::Curve;
-//! # fn send<E: Curve>(_: &p::Data<E>, _: &p::Commitment<E>, _: &p::Proof) {  }
-//! send(&data, &commitment, &proof);
-//!
-//! // 6. Verifier receives the data and the proof and verifies it
-//!
-//! # let recv = || (data, commitment, proof);
-//! let (data, commitment, proof) = recv();
-//! let r = p::non_interactive::verify::<E, sha2::Sha256>(
-//!     &shared_state,
-//!     &aux,
-//!     data,
-//!     &commitment,
-//!     &security,
-//!     &proof,
-//! )?;
-//! #
-//! # Ok(()) }
-//! ```
-//!
-//! If the verification succeeded, verifier can continue communication with prover
+//! See full example in the documentation below, where both prover and verifier perform the setup,
+//! generate commitments and proofs, and finally verify the batched zero-knowledge proof.
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
 use generic_ec::{Curve, Point};
@@ -243,13 +134,10 @@ pub struct PrivateData<'a> {
     pub batch: Vec<PrivateElement<'a>>,
 }
 
-// As described in cggmp21 at page 35
 /// Prover's first message, obtained by [`interactive::commit`]
 #[derive(Debug, Clone)]
-// #[udigest(bound = "")]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Commitment<C: Curve> {
-    // #[udigest(as = crate::common::encoding::Integer)]
     pub a: Ciphertext,
     pub s: Vec<Integer>,
     pub e: Vec<Integer>,
@@ -488,7 +376,6 @@ pub mod interactive {
         // Five equality checks and two range checks
 
         {
-            // Why lhs < rhs?
             let lhs = proof.z1.iter().zip(data.batch.iter()).fold(
                 data.key0.encrypt_with(&proof.z2, &proof.w).unwrap(),
                 |acc, (z1_i, element)| {
@@ -503,9 +390,6 @@ pub mod interactive {
                     data.key0.oadd(&acc, &e_at_d).unwrap()
                 },
             );
-
-            println!("check key0: {}", data.key0.n());
-            println!("check key1: {}", data.key1.n());
 
             fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
         }
@@ -523,7 +407,7 @@ pub mod interactive {
                 .zip(challenge.iter())
                 .map(|((b_x_i, element), challenge_i)| b_x_i + element.x * challenge_i.to_scalar())
                 .collect();
-            // TODO: compare each point in lhs and rhs
+
             for (lhs_i, rhs_i) in lhs.iter().zip(rhs.iter()) {
                 fail_if_ne(InvalidProofReason::EqualityCheck(2), lhs_i, rhs_i)?;
             }
@@ -546,6 +430,7 @@ pub mod interactive {
                         .modulo(&aux.rsa_modulo)
                 })
                 .collect();
+
             for (lhs_i, rhs_i) in lhs.iter().zip(rhs.iter()) {
                 fail_if_ne(InvalidProofReason::EqualityCheck(4), lhs_i, rhs_i)?;
             }
@@ -564,6 +449,7 @@ pub mod interactive {
                     data.key1.oadd(&acc, &e_at_y).unwrap()
                 },
             );
+
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
         }
 
@@ -674,7 +560,7 @@ pub mod non_interactive {
         security: &SecurityParams,
         batch_size: usize,
     ) -> Challenge {
-        let tag = "paillier_zk.paillier_affine_operation_in_range.ni_challenge";
+        let tag = "paillier_zk.batch_paillier_affine_operation_in_range.ni_challenge";
         let aux = aux.digest_public_data();
         let data = data.digest_public_data();
         let commitment = commitment.digest_public_data();

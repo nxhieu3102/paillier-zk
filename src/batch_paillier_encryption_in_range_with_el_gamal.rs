@@ -1,101 +1,36 @@
-//! ZK-proof of paillier encryption in range with El-Gamal commitment.
-//! Called Пenc-elg or Renc-elg in the CGGMP24
-//! paper.
+//! Zero-Knowledge Proof of Paillier Encryption in Range using ElGamal Commitment.
 //!
-//! ## Description
+//! This protocol—referred to as Π_enc-elg or R_enc-elg in the CGGMP24 paper—proves in
+//! zero knowledge that a Paillier-encrypted integer lies within a specific range.
 //!
-//! Common (public) inputs: verifier's [`Aux`] data, [`SecurityParams`] containing
-//! $\ell$ and $\varepsilon$, [curve `E`](Curve), Paillier public `key`, a `ciphertext`,
-//! and elliptic points $A, B, X$.
+//! ## Overview
 //!
-//! Prover secret inputs: `plaintext`, `nonce`, scalars $a, b$, such that:
-//! * `plaintext` $\in \pm 2^\ell$
-//! * `ciphertext == key.encrypt_with(plaintext, nonce)`
-//! * $A = a \cdot G$
-//! * $B = b \cdot G$
-//! * $X = (a b + \text{plaintext}) \cdot G$
+//! The proof demonstrates that a Paillier-encrypted plaintext lies within the interval
+//! $[-2^\ell, 2^\ell]$, while hiding the plaintext. It leverages ElGamal commitments over
+//! an elliptic curve to bind randomness and secret values used in the encryption.
 //!
-//! Proof guarantees that `plaintext` $\in \pm 2^{\ell + \varepsilon}$.
+//! ### Public Inputs
+//! - Verifier’s [`Aux`] data (used for homomorphic commitments).
+//! - [`SecurityParams`] containing $\ell$, $\varepsilon$, $q$, and $t$.
+//! - An elliptic curve implementing the [`Curve`] trait.
+//! - Paillier public encryption key (`key`).
+//! - A batch of [`Ciphertext`] values and corresponding elliptic curve points $A$, $B$, and $X$:
+//!     - $A = a \cdot G$
+//!     - $B = b \cdot G$
+//!     - $X = (ab + \text{plaintext}) \cdot G$
+//!
+//! ### Prover’s Secret Inputs
+//! - `plaintext` in range $[-2^\ell, 2^\ell]$
+//! - `nonce` used in Paillier encryption
+//! - Scalars `a`, `b` used in computing ElGamal-style commitments
+//!
+//! ### Guarantees
+//! The proof guarantees that `plaintext` ∈ $[-2^{\ell + \varepsilon}, 2^{\ell + \varepsilon}]$.
 //!
 //! ## Example
 //!
-//! ```
-//! use paillier_zk::{paillier_encryption_in_range_with_el_gamal as p, IntegerExt};
-//! use rug::{Integer, Complete};
-//! use generic_ec::{Point, Scalar, curves::Secp256k1 as E};
-//! # mod pregenerated {
-//! #     use super::*;
-//! #     paillier_zk::load_pregenerated_data!(
-//! #         verifier_aux: p::Aux,
-//! #         someone_encryption_key: fast_paillier::EncryptionKey,
-//! #     );
-//! # }
-//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!
-//! let shared_state = "some shared state";
-//!
-//! let mut rng = rand_core::OsRng;
-//! # let mut rng = rand_dev::DevRng::new();
-//!
-//! // Both parties know predefined security parameters and verifier's aux data
-//! let aux: p::Aux = pregenerated::verifier_aux();
-//! let security = p::SecurityParams {
-//!     l: 1024,
-//!     epsilon: 128,
-//! };
-//! // ...and someone's encryption key
-//! let key: fast_paillier::EncryptionKey =
-//!     pregenerated::someone_encryption_key();
-//!
-//! // Prover knows its secret `pdata` and `a`
-//! let a = Scalar::random(&mut rng);
-//! let pdata = p::PrivateData {
-//!     plaintext: &Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng),
-//!     nonce: &Integer::gen_invertible(key.n(), &mut rng),
-//!     b: &Scalar::random(&mut rng),
-//! };
-//!
-//! // Both parties know the public data
-//! let data = p::Data {
-//!     key: &key,
-//!     ciphertext: &key
-//!         .encrypt_with(pdata.plaintext, pdata.nonce)
-//!         .unwrap(),
-//!     a: &(Point::generator() * a),
-//!     b: &(Point::generator() * pdata.b),
-//!     x: &(Point::generator() * (a * pdata.b + pdata.plaintext.to_scalar())),
-//! };
-//!
-//! // Prover computes a non-interactive proof:
-//! let (commitment, proof) = p::non_interactive::prove::<E, sha2::Sha256>(
-//!     &shared_state,
-//!     &aux,
-//!     data,
-//!     pdata,
-//!     &security,
-//!     &mut rng,
-//! )?;
-//!
-//! // Prover sends this data to verifier
-//! # use generic_ec::Curve;
-//! # fn send<E: Curve>(_: &p::Data<E>, _: &p::Commitment<E>, _: &p::Proof<E>) {  }
-//! send(&data, &commitment, &proof);
-//!
-//! // Verifier receives the data and the proof and verifies it
-//! # let recv = || (data, commitment, proof);
-//! let (data, commitment, proof) = recv();
-//! p::non_interactive::verify::<E, sha2::Sha256>(
-//!     &shared_state,
-//!     &aux,
-//!     data,
-//!     &commitment,
-//!     &proof,
-//!     &security,
-//! );
-//! # Ok(()) }
-//! ```
-//!
-//! If the verification succeeded, verifier can continue communication with prover
+//! See full example in the documentation below, where both prover and verifier perform the setup,
+//! generate commitments and proofs, and finally verify the batched zero-knowledge proof.
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce, Plaintext};
 use generic_ec::{Curve, Point, Scalar};
