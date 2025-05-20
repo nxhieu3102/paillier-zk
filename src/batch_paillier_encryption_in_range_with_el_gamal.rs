@@ -135,6 +135,19 @@ pub struct PublicElement<C: Curve> {
     pub x: Point<C>,
 }
 
+impl<C: Curve> PublicElement<C> {
+    /// Returns a stripped version of `PublicData` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.public_element" {
+            ciphertext: udigest::Bytes(self.ciphertext.to_digits::<u8>(order)),
+            b: udigest::Bytes(self.b.to_bytes(true)),
+            x: udigest::Bytes(self.x.to_bytes(true)),
+        })
+    }
+}
+
 /// Public data that both parties know
 #[derive(Debug, Clone, Copy)]
 // #[udigest(bound = "")]
@@ -147,6 +160,19 @@ pub struct PublicData<'a, C: Curve> {
     /// $A = g^a$ is El-Gamal commitment generator ~ g_2 (Batch Range Proof)
     /// g_1 is curve's generator
     pub a: &'a Point<C>,
+}
+
+impl<'a, C: Curve> PublicData<'a, C> {
+    /// Returns a stripped version of `PublicData` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.public_data" {
+            key: udigest::Bytes(self.key.n().to_digits::<u8>(order)),
+            a: udigest::Bytes(self.a.to_bytes(true)),
+            batch: self.batch.iter().map(|e| e.digest_public_data()).collect::<Vec<_>>(),
+        })
+    }
 }
 
 /// Single private element in a batch proof
@@ -177,6 +203,20 @@ pub struct Commitment<E: Curve> {
     pub d: Integer,
     pub y: Point<E>,
     pub z: Point<E>,
+}
+
+impl<C: Curve> Commitment<C> {
+    /// Returns a stripped version of `Commitment` that contains only public data which can be digested
+    /// via [`udigest::Digestable`]
+    pub fn digest_public_data(&self) -> impl udigest::Digestable {
+        let order = rug::integer::Order::Msf;
+        udigest::inline_struct!("paillier_zk.commitment" {
+            s: self.s.iter().map(|e| udigest::Bytes(e.to_digits::<u8>(order))).collect::<Vec<_>>(),
+            d: udigest::Bytes(self.d.to_digits::<u8>(order)),
+            y: udigest::Bytes(self.y.to_bytes(true)),
+            z: udigest::Bytes(self.z.to_bytes(true)),
+        })
+    }
 }
 
 /// Prover's secret commitment nonce
@@ -219,7 +259,8 @@ pub mod interactive {
     use crate::common::{IntegerExt, InvalidProof};
 
     use super::{
-        Aux, Challenge, Commitment, PublicData, PrivateCommitment, PrivateData, Proof, SecurityParams,
+        Aux, Challenge, Commitment, PrivateCommitment, PrivateData, Proof, PublicData,
+        SecurityParams,
     };
 
     /// Create random commitment
@@ -316,7 +357,6 @@ pub mod interactive {
                 .key
                 .encrypt_with(&proof.z1, &proof.z2)
                 .map_err(|_| InvalidProofReason::PaillierEnc)?;
-
 
             // C0 * C1^e1 * C2^e2 * ... * Cn^en
             let rhs = {
@@ -420,7 +460,7 @@ pub mod non_interactive {
 
     use crate::{Error, InvalidProof};
 
-    use super::{Aux, Challenge, Commitment, PublicData, PrivateData, Proof, SecurityParams};
+    use super::{Aux, Challenge, Commitment, PrivateData, Proof, PublicData, SecurityParams};
 
     /// Compute proof for the given data, producing random commitment and
     /// deriving deterministic challenge.
@@ -467,12 +507,16 @@ pub mod non_interactive {
         batch_size: usize,
     ) -> Challenge {
         let tag = "paillier_zk.encryption_in_range_with_el_gamal.ni_challenge";
+        let aux = aux.digest_public_data();
+        let data = data.digest_public_data();
+        let commitment = commitment.digest_public_data();
+
         let seed = udigest::inline_struct!(tag {
             shared_state,
-            aux: aux.digest_public_data(),
+            aux,
             security,
-            // data,
-            // commitment,
+            data,
+            commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
         super::interactive::challenge(security, &mut rng, batch_size)
@@ -495,18 +539,16 @@ mod test {
     ) -> Result<(), crate::common::InvalidProof> {
         let aux = crate::common::test::aux(&mut rng);
 
-        let private_key = crate::common::test::random_key(&mut rng).unwrap();
+        let private_key = crate::common::test::sample_key();
         let a = Scalar::random(rng);
         let generator = Point::<E>::generator();
-        
+
         // Create nonces and b values first so they exist for the entire scope
         let nonces: Vec<Integer> = (0..batch_size)
             .map(|_| Integer::gen_invertible(private_key.n(), rng))
             .collect();
-        let b_values: Vec<Scalar<E>> = (0..batch_size)
-            .map(|_| Scalar::random(rng))
-            .collect();
-        
+        let b_values: Vec<Scalar<E>> = (0..batch_size).map(|_| Scalar::random(rng)).collect();
+
         // Create private elements
         let private_elements: Vec<super::PrivateElement<E>> = (0..batch_size)
             .map(|i| super::PrivateElement {
@@ -515,7 +557,7 @@ mod test {
                 b: &b_values[i],
             })
             .collect();
-        
+
         let pdata = super::PrivateData {
             batch: &private_elements,
         };
@@ -523,14 +565,17 @@ mod test {
         // Create public elements
         let elements: Vec<super::PublicElement<E>> = (0..batch_size)
             .map(|i| super::PublicElement {
-                ciphertext: private_key.encrypt_with(private_elements[i].plaintext, private_elements[i].nonce).unwrap(),
+                ciphertext: private_key
+                    .encrypt_with(private_elements[i].plaintext, private_elements[i].nonce)
+                    .unwrap(),
                 b: generator * private_elements[i].b,
-                x: generator * (a * private_elements[i].b + private_elements[i].plaintext.to_scalar()),
+                x: generator
+                    * (a * private_elements[i].b + private_elements[i].plaintext.to_scalar()),
             })
             .collect();
 
         let a_point = generator * a;
-        
+
         let data = super::PublicData {
             key: private_key.encryption_key(),
             batch: &elements,
@@ -568,7 +613,11 @@ mod test {
             t: 128,
         };
         let batch_size = 2;
-        let plaintext = vec![Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng); batch_size];
+        let plaintext =
+            vec![
+                Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+                batch_size
+            ];
         run_with::<C, D>(&mut rng, security, plaintext, batch_size).expect("proof failed");
     }
 
@@ -581,8 +630,15 @@ mod test {
             t: 128,
         };
         let batch_size = 2;
-        let plaintext = vec![Integer::from_rng_pm(&(Integer::ONE << (security.l + security.epsilon + 3)).complete(), &mut rng); batch_size];
-        let r = run_with::<C, D>(&mut rng, security, plaintext, batch_size).expect_err("proof should not pass");
+        let plaintext = vec![
+            Integer::from_rng_pm(
+                &(Integer::ONE << (security.l + security.epsilon + 4)).complete(),
+                &mut rng
+            );
+            batch_size
+        ];
+        let r = run_with::<C, D>(&mut rng, security, plaintext, batch_size)
+            .expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(5) => (),
             e => panic!("proof should not fail with: {e:?}"),

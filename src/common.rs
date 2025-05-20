@@ -268,7 +268,6 @@ pub fn fail_if_ne<T: PartialEq, E>(err: E, lhs: T, rhs: T) -> Result<(), E> {
 }
 
 pub mod encoding {
-    use generic_ec::{Curve, Point};
 
     /// Digests a rug integer
     pub struct Integer;
@@ -304,8 +303,8 @@ pub mod test {
     pub fn random_key<R: rand_core::RngCore + rand_core::CryptoRng>(
         rng: &mut R,
     ) -> Option<fast_paillier::DecryptionKey> {
-        let n_size = 2048;
-        let a_size = 448;
+        let n_size = 3072;
+        let a_size = 512;
         fast_paillier::DecryptionKey::generate(rng, n_size, a_size).ok()
     }
 
