@@ -1,8 +1,16 @@
 //! Pregenerates aux data and keys
 //!
 //! This example shows how aux data can be generated to set up proofs. Generated data is used by doctests.
-
-// cargo run --example pregenerate --features=__internal_doctest
+//!
+//! Because this example generates some keys, it will take a while to run.
+//!
+//! You can run this example with the following command:
+//!
+//! ```bash
+//! cargo run --example pregenerate --features=__internal_doctest
+//! ```
+//!
+//! The generated keys will be saved in the `test-data` directory.
 
 use anyhow::{Context, Result};
 use rug::{Complete, Integer};
@@ -62,16 +70,16 @@ fn main() -> Result<()> {
 }
 
 fn generate_paillier_key(
-    rng: &mut impl rand_core::RngCore,
+    rng: &mut (impl rand_core::RngCore + rand_core::CryptoRng),
     output_dk: Option<&std::path::Path>,
     output_ek: Option<&std::path::Path>,
 ) -> anyhow::Result<()> {
-    // 1536 bits primes used for paillier key achieve 128 bits security
-    let p = generate_blum_prime(rng, 1536);
-    let q = generate_blum_prime(rng, 1536);
+    // paillier key achieve 128 bits security
+    let n_size = 3072;
+    let a_size = 512;
 
-    // TODO: replace with n_size and a_size
-    let dk: fast_paillier::DecryptionKey = fast_paillier::DecryptionKey::sample_128();
+    let dk: fast_paillier::DecryptionKey =
+        fast_paillier::DecryptionKey::generate(rng, n_size, a_size)?;
     let ek = dk.encryption_key();
 
     if let Some(path) = output_dk {
