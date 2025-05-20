@@ -288,13 +288,10 @@ pub mod interactive {
     ) -> Result<(Commitment<C>, PrivateCommitment), Error> {
         let two_to_l = (Integer::ONE << security.l_x).complete();
         let two_to_l_y = (Integer::ONE << security.l_y).complete();
-        let two_to_l_e = (Integer::ONE << (security.l_x + security.epsilon)).complete();
         let two_to_l_e_t =
             (Integer::ONE << (security.l_x + security.epsilon + security.t)).complete();
         let two_to_l_prime_e_t =
             (Integer::ONE << (security.l_y + security.epsilon + security.t)).complete();
-        let two_to_l_prime_e = (Integer::ONE << (security.l_y + security.epsilon)).complete();
-        let hat_n_at_two_to_l_e = (&aux.rsa_modulo * &two_to_l_e).complete();
         let hat_n_at_two_to_l = (&aux.rsa_modulo * &two_to_l).complete();
         let hat_n_at_two_to_l_y = (&aux.rsa_modulo * &two_to_l_y).complete();
         let hat_n_at_two_to_l_e_t = (&aux.rsa_modulo * &two_to_l_e_t).complete();
@@ -623,8 +620,8 @@ pub mod non_interactive {
     pub fn challenge<C: Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
-        data: PublicData<C>,
-        commitment: &Commitment<C>,
+        _data: PublicData<C>,
+        _commitment: &Commitment<C>,
         security: &SecurityParams,
         batch_size: usize,
     ) -> Challenge {

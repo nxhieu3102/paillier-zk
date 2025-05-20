@@ -268,7 +268,6 @@ pub fn fail_if_ne<T: PartialEq, E>(err: E, lhs: T, rhs: T) -> Result<(), E> {
 }
 
 pub mod encoding {
-    use generic_ec::{Curve, Point};
 
     /// Digests a rug integer
     pub struct Integer;

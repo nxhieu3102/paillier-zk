@@ -219,7 +219,8 @@ pub mod interactive {
     use crate::common::{IntegerExt, InvalidProof};
 
     use super::{
-        Aux, Challenge, Commitment, PublicData, PrivateCommitment, PrivateData, Proof, SecurityParams,
+        Aux, Challenge, Commitment, PrivateCommitment, PrivateData, Proof, PublicData,
+        SecurityParams,
     };
 
     /// Create random commitment
@@ -316,7 +317,6 @@ pub mod interactive {
                 .key
                 .encrypt_with(&proof.z1, &proof.z2)
                 .map_err(|_| InvalidProofReason::PaillierEnc)?;
-
 
             // C0 * C1^e1 * C2^e2 * ... * Cn^en
             let rhs = {
@@ -420,7 +420,7 @@ pub mod non_interactive {
 
     use crate::{Error, InvalidProof};
 
-    use super::{Aux, Challenge, Commitment, PublicData, PrivateData, Proof, SecurityParams};
+    use super::{Aux, Challenge, Commitment, PrivateData, Proof, PublicData, SecurityParams};
 
     /// Compute proof for the given data, producing random commitment and
     /// deriving deterministic challenge.
@@ -461,8 +461,8 @@ pub mod non_interactive {
     pub fn challenge<E: Curve, D: Digest>(
         shared_state: &impl udigest::Digestable,
         aux: &Aux,
-        data: PublicData<E>,
-        commitment: &Commitment<E>,
+        _data: PublicData<E>,
+        _commitment: &Commitment<E>,
         security: &SecurityParams,
         batch_size: usize,
     ) -> Challenge {
@@ -498,15 +498,13 @@ mod test {
         let private_key = crate::common::test::random_key(&mut rng).unwrap();
         let a = Scalar::random(rng);
         let generator = Point::<E>::generator();
-        
+
         // Create nonces and b values first so they exist for the entire scope
         let nonces: Vec<Integer> = (0..batch_size)
             .map(|_| Integer::gen_invertible(private_key.n(), rng))
             .collect();
-        let b_values: Vec<Scalar<E>> = (0..batch_size)
-            .map(|_| Scalar::random(rng))
-            .collect();
-        
+        let b_values: Vec<Scalar<E>> = (0..batch_size).map(|_| Scalar::random(rng)).collect();
+
         // Create private elements
         let private_elements: Vec<super::PrivateElement<E>> = (0..batch_size)
             .map(|i| super::PrivateElement {
@@ -515,7 +513,7 @@ mod test {
                 b: &b_values[i],
             })
             .collect();
-        
+
         let pdata = super::PrivateData {
             batch: &private_elements,
         };
@@ -523,14 +521,17 @@ mod test {
         // Create public elements
         let elements: Vec<super::PublicElement<E>> = (0..batch_size)
             .map(|i| super::PublicElement {
-                ciphertext: private_key.encrypt_with(private_elements[i].plaintext, private_elements[i].nonce).unwrap(),
+                ciphertext: private_key
+                    .encrypt_with(private_elements[i].plaintext, private_elements[i].nonce)
+                    .unwrap(),
                 b: generator * private_elements[i].b,
-                x: generator * (a * private_elements[i].b + private_elements[i].plaintext.to_scalar()),
+                x: generator
+                    * (a * private_elements[i].b + private_elements[i].plaintext.to_scalar()),
             })
             .collect();
 
         let a_point = generator * a;
-        
+
         let data = super::PublicData {
             key: private_key.encryption_key(),
             batch: &elements,
@@ -568,7 +569,11 @@ mod test {
             t: 128,
         };
         let batch_size = 2;
-        let plaintext = vec![Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng); batch_size];
+        let plaintext =
+            vec![
+                Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+                batch_size
+            ];
         run_with::<C, D>(&mut rng, security, plaintext, batch_size).expect("proof failed");
     }
 
@@ -581,8 +586,15 @@ mod test {
             t: 128,
         };
         let batch_size = 2;
-        let plaintext = vec![Integer::from_rng_pm(&(Integer::ONE << (security.l + security.epsilon + 3)).complete(), &mut rng); batch_size];
-        let r = run_with::<C, D>(&mut rng, security, plaintext, batch_size).expect_err("proof should not pass");
+        let plaintext = vec![
+            Integer::from_rng_pm(
+                &(Integer::ONE << (security.l + security.epsilon + 3)).complete(),
+                &mut rng
+            );
+            batch_size
+        ];
+        let r = run_with::<C, D>(&mut rng, security, plaintext, batch_size)
+            .expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(5) => (),
             e => panic!("proof should not fail with: {e:?}"),
