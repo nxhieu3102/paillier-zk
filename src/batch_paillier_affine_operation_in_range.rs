@@ -464,37 +464,6 @@ pub mod interactive {
             fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
         }
 
-        // {
-        //     let lhs = data
-        //         .key1
-        //         .encrypt_with(&proof.z2, &proof.w_y)
-        //         .map_err(|_| InvalidProofReason::PaillierEnc)?;
-
-        //     let rhs = data.batch.iter().zip(challenge.iter()).fold(
-        //         commitment.b_y.clone(),
-        //         |acc, (element, challenge_i)| {
-        //             let e_at_y = data.key1.omul(&challenge_i, &element.y).unwrap();
-        //             data.key1.oadd(&acc, &e_at_y).unwrap()
-        //         },
-        //     );
-        //     fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
-        // }
-
-        fail_if(
-            InvalidProofReason::RangeCheck(6),
-            proof.z1.iter().any(|z1_i| {
-                z1_i.is_in_pm(
-                    &(Integer::ONE << (security.l_x + security.epsilon + security.t)).complete(),
-                )
-            }),
-        )?;
-        fail_if(
-            InvalidProofReason::RangeCheck(7),
-            proof.z2.is_in_pm(
-                &(Integer::ONE << (security.l_y + security.epsilon + security.t)).complete(),
-            ),
-        )?;
-
         {
             let lhs: Vec<Point<C>> = proof
                 .z1
@@ -535,6 +504,23 @@ pub mod interactive {
                 fail_if_ne(InvalidProofReason::EqualityCheck(4), lhs_i, rhs_i)?;
             }
         }
+
+        {
+            let lhs = data
+                .key1
+                .encrypt_with(&proof.z2, &proof.w_y)
+                .map_err(|_| InvalidProofReason::PaillierEnc)?;
+
+            let rhs = data.batch.iter().zip(challenge.iter()).fold(
+                commitment.b_y.clone(),
+                |acc, (element, challenge_i)| {
+                    let e_at_y = data.key1.omul(&challenge_i, &element.y).unwrap();
+                    data.key1.oadd(&acc, &e_at_y).unwrap()
+                },
+            );
+            fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
+        }
+
         {
             let lhs = aux.combine(&proof.z2, &proof.z4)?;
             let rhs = commitment.t.iter().zip(challenge.iter()).fold(
@@ -547,6 +533,21 @@ pub mod interactive {
 
             fail_if_ne(InvalidProofReason::EqualityCheck(5), lhs, rhs)?;
         }
+
+        fail_if(
+            InvalidProofReason::RangeCheck(6),
+            proof.z1.iter().any(|z1_i| {
+                z1_i.is_in_pm(
+                    &(Integer::ONE << (security.l_x + security.epsilon + security.t)).complete(),
+                )
+            }),
+        )?;
+        fail_if(
+            InvalidProofReason::RangeCheck(7),
+            proof.z2.is_in_pm(
+                &(Integer::ONE << (security.l_y + security.epsilon + security.t)).complete(),
+            ),
+        )?;
 
         Ok(())
     }
@@ -656,11 +657,11 @@ mod test {
         security: super::SecurityParams,
         x: Integer,
         y: Integer,
-        batch_size: usize,
     ) -> Result<(), crate::common::InvalidProof> {
+        let batch_size = 2;
         let dk0 = random_key(rng).unwrap();
         let dk1 = random_key(rng).unwrap();
-        let ek0 = dk0.encryption_key().clone();
+        let _ek0 = dk0.encryption_key().clone();
         let ek1 = dk1.encryption_key().clone();
 
         let (c, _) = {
@@ -670,10 +671,11 @@ mod test {
 
         let (y_enc_ek1, rho_y) = ek1.encrypt_with_random(rng, &y).unwrap();
 
-        let (y_enc_ek0, rho) = dk0.encrypt_with_random(rng, &y).unwrap();
-        let x_at_c = dk0.omul(&x, &c).unwrap();
-        let d = dk0.oadd(&x_at_c, &y_enc_ek0).unwrap();
-
+        let (rho, d) = {
+            let x_at_c = dk0.omul(&x, &c).unwrap();
+            let (y_enc_ek0, rho) = dk0.encrypt_with_random(rng, &y).unwrap();
+            (rho, dk0.oadd(&x_at_c, &y_enc_ek0).unwrap())
+        };
 
         let (c2, _) = {
             let plaintext = Integer::from_rng_pm(dk0.half_n(), rng);
@@ -681,9 +683,12 @@ mod test {
         };
 
         let (y_enc_ek1_2, rho_y_2) = ek1.encrypt_with_random(rng, &y).unwrap();
-        let (y_enc_ek0_2, rho_2) = dk0.encrypt_with_random(rng, &y).unwrap();
-        let x_at_c2 = dk0.omul(&x, &c2).unwrap();
-        let d2 = dk0.oadd(&x_at_c2, &y_enc_ek0).unwrap();
+
+        let (rho_2, d2) = {
+            let x_at_c2 = dk0.omul(&x, &c2).unwrap();
+            let (y_enc_ek0_2, rho_2) = dk0.encrypt_with_random(rng, &y).unwrap();
+            (rho_2, dk0.oadd(&x_at_c2, &y_enc_ek0_2).unwrap())
+        };
 
         let data = super::PublicData {
             key0: &dk0,
@@ -704,19 +709,20 @@ mod test {
             ],
         };
         let pdata = super::PrivateData {
-            batch: vec![super::PrivateElement {
-                x: &x,
-                y: &y,
-                nonce: &rho,
-                nonce_y: &rho_y,
-            },
-            super::PrivateElement {
-                x: &x,
-                y: &y,
-                nonce: &rho_2,
-                nonce_y: &rho_y_2,
-            },
-        ],
+            batch: vec![
+                super::PrivateElement {
+                    x: &x,
+                    y: &y,
+                    nonce: &rho,
+                    nonce_y: &rho_y,
+                },
+                super::PrivateElement {
+                    x: &x,
+                    y: &y,
+                    nonce: &rho_2,
+                    nonce_y: &rho_y_2,
+                },
+            ],
         };
 
         let aux = crate::common::test::aux(rng);
@@ -753,10 +759,9 @@ mod test {
             q: (Integer::ONE << 128_u32).complete() - 1,
             t: 128,
         };
-        let batch_size = 2;
         let x = Integer::from_rng_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
         let y = Integer::from_rng_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
-        run::<_, C, D>(&mut rng, security, x, y, batch_size).expect("proof failed");
+        run::<_, C, D>(&mut rng, security, x, y).expect("proof failed");
     }
 
     fn failing_on_additive<C: Curve, D: Digest>() {
@@ -768,11 +773,9 @@ mod test {
             q: (Integer::ONE << 128_u32).complete(),
             t: 128,
         };
-        let batch_size = 1;
         let x = Integer::from_rng_pm(&(Integer::ONE << security.l_x).complete(), &mut rng);
         let y = (Integer::ONE << (security.l_y + security.epsilon + 3)).complete() + 1;
-        let r = run::<_, C, D>(&mut rng, security, x, y, batch_size)
-            .expect_err("proof should not pass");
+        let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(7) => (),
             e => panic!("proof should not fail with: {e:?}"),
@@ -788,11 +791,9 @@ mod test {
             q: (Integer::ONE << 128_u32).complete(),
             t: 128,
         };
-        let batch_size = 1;
         let x: Integer = (Integer::ONE << (security.l_x + security.epsilon + 3)).complete() + 1;
         let y = Integer::from_rng_pm(&(Integer::ONE << security.l_y).complete(), &mut rng);
-        let r = run::<_, C, D>(&mut rng, security, x, y, batch_size)
-            .expect_err("proof should not pass");
+        let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(6) => (),
             e => panic!("proof should not fail with: {e:?}"),
