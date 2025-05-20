@@ -407,19 +407,21 @@ pub mod interactive {
                 acc + challenge_i * mu_i
             });
 
-        let w = pdata.batch.iter().zip(challenge.iter()).fold(
-            pcomm.r.clone(),
-            |acc, (element, challenge_i)| {
-                (acc + element.nonce * challenge_i).modulo(&_data.key0.n())
-            },
-        );
+        let w = pdata
+            .batch
+            .iter()
+            .zip(challenge.iter())
+            .fold(pcomm.r.clone(), |acc, (element, challenge_i)| {
+                acc + element.nonce * challenge_i
+            });
 
-        let w_y = pdata.batch.iter().zip(challenge.iter()).fold(
-            pcomm.r_y.clone(),
-            |acc, (element, challenge_i)| {
-                (acc + element.nonce_y * challenge_i).modulo(&_data.key1.n())
-            },
-        );
+        let w_y = pdata
+            .batch
+            .iter()
+            .zip(challenge.iter())
+            .fold(pcomm.r_y.clone(), |acc, (element, challenge_i)| {
+                acc + element.nonce_y * challenge_i
+            });
 
         Ok(Proof {
             z1,
@@ -443,6 +445,7 @@ pub mod interactive {
         // Five equality checks and two range checks
 
         {
+            // Why lhs < rhs?
             let lhs = proof.z1.iter().zip(data.batch.iter()).fold(
                 data.key0.encrypt_with(&proof.z2, &proof.w).unwrap(),
                 |acc, (z1_i, element)| {
@@ -457,6 +460,9 @@ pub mod interactive {
                     data.key0.oadd(&acc, &e_at_d).unwrap()
                 },
             );
+
+            println!("check key0: {}", data.key0.n());
+            println!("check key1: {}", data.key1.n());
 
             fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
         }
