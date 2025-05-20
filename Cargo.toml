@@ -12,33 +12,24 @@ keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 
 [dependencies]
 generic-ec = { version = "0.4", features = ["udigest"] }
-rand_core = { version = "0.6", default-features = false, features = [
-    "getrandom",
-] }
-digest = "0.10"
 fast-paillier = { git = "https://github.com/nxhieu3102/fast-paillier" }
+rand_core = { version = "0.6", default-features = false }
+digest = "0.10"
 rug = { version = "1.27", default-features = false, features = [
     "integer",
     "rand",
 ] }
-
+rand_hash = "0.1"
 thiserror = "1"
-
 serde = { version = "1", features = ["derive"], optional = true }
 serde_with = { version = "3", default-features = false, features = [
     "macros",
 ], optional = true }
-
 udigest = { version = "0.2.1", default-features = false, features = [
     "inline-struct",
     "derive",
     "alloc",
 ] }
-
-# alloc = { package = "alloc", optional = true }
-
-rand_hash = "0.1"
-bytemuck = "1.23.0"
 
 [dev-dependencies]
 generic-ec = { version = "0.4", features = ["udigest", "all-curves"] }
