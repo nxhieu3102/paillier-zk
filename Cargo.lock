@@ -308,8 +308,7 @@ dependencies = [
 [[package]]
 name = "generic-ec"
 version = "0.4.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8de1099ac0b4d87261d67ff5d4ed400af617a1da40b58908d759b9cf5fd8ed27"
+source = "git+https://github.com/nxhieu3102/generic-ec?branch=feat%2Fintegrate-cggmp21#b85f6874005f09db75259d3bb35943c5ffae610e"
 dependencies = [
  "curve25519-dalek",
  "generic-ec-core",
@@ -327,8 +326,7 @@ dependencies = [
 [[package]]
 name = "generic-ec-core"
 version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dcba5fdf70cc3ce5805c487f8523b4ceeb32e8ec5237c71ffd93c1ca47a97fee"
+source = "git+https://github.com/nxhieu3102/generic-ec?branch=feat%2Fintegrate-cggmp21#b85f6874005f09db75259d3bb35943c5ffae610e"
 dependencies = [
  "generic-array",
  "rand_core",
@@ -340,8 +338,7 @@ dependencies = [
 [[package]]
 name = "generic-ec-curves"
 version = "0.2.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c7c6d23001a5eb60eec2b785a63d2ca965fdfbaf3314b3b46df047398369e28"
+source = "git+https://github.com/nxhieu3102/generic-ec?branch=feat%2Fintegrate-cggmp21#b85f6874005f09db75259d3bb35943c5ffae610e"
 dependencies = [
  "curve25519-dalek",
  "elliptic-curve",
