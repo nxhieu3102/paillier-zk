@@ -16,6 +16,8 @@ pub mod paillier_affine_operation_in_range;
 pub mod paillier_blum_modulus;
 pub mod paillier_encryption_in_range;
 pub mod paillier_encryption_in_range_with_el_gamal;
+pub mod batch_paillier_encryption_in_range_with_el_gamal;
+pub mod batch_paillier_affine_operation_in_range;
 #[cfg(test)]
 mod curve;
 

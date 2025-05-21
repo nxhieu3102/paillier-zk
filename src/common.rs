@@ -268,6 +268,7 @@ pub fn fail_if_ne<T: PartialEq, E>(err: E, lhs: T, rhs: T) -> Result<(), E> {
 }
 
 pub mod encoding {
+
     /// Digests a rug integer
     pub struct Integer;
     impl udigest::DigestAs<rug::Integer> for Integer {
@@ -302,9 +303,13 @@ pub mod test {
     pub fn random_key<R: rand_core::RngCore + rand_core::CryptoRng>(
         rng: &mut R,
     ) -> Option<fast_paillier::DecryptionKey> {
-        let n_size = 2048;
-        let a_size = 448;
+        let n_size = 3072;
+        let a_size = 512;
         fast_paillier::DecryptionKey::generate(rng, n_size, a_size).ok()
+    }
+
+    pub fn sample_key() -> fast_paillier::DecryptionKey {
+        fast_paillier::DecryptionKey::sample_128()
     }
 
     pub fn aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {
