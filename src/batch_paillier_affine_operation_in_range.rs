@@ -47,8 +47,7 @@
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
 use generic_ec::{Curve, Point};
-use rug::Integer;
-
+use num_bigint::BigInt;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -67,7 +66,7 @@ pub struct SecurityParams {
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
     #[udigest(as = crate::common::encoding::Integer)]
-    pub q: Integer,
+    pub q: BigInt,
     /// size of challenge
     pub t: usize,
 }
@@ -122,8 +121,8 @@ impl<'a, C: Curve> PublicData<'a, C> {
 
 #[derive(Debug, Clone)]
 pub struct PrivateElement<'a> {
-    pub x: &'a Integer,
-    pub y: &'a Integer,
+    pub x: &'a BigInt,
+    pub y: &'a BigInt,
     pub nonce: &'a Nonce,
     pub nonce_y: &'a Nonce,
 }
@@ -139,12 +138,12 @@ pub struct PrivateData<'a> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Commitment<C: Curve> {
     pub a: Ciphertext,
-    pub s: Vec<Integer>,
-    pub e: Vec<Integer>,
-    pub f: Integer,
-    pub t: Vec<Integer>,
+    pub s: Vec<BigInt>,
+    pub e: Vec<BigInt>,
+    pub f: BigInt,
+    pub t: Vec<BigInt>,
     pub b_x: Vec<Point<C>>,
-    pub b_y: Integer,
+    pub b_y: BigInt,
 }
 
 impl<C: Curve> Commitment<C> {
@@ -168,31 +167,31 @@ impl<C: Curve> Commitment<C> {
 /// the interactive protocol.
 #[derive(Clone)]
 pub struct PrivateCommitment {
-    pub m: Vec<Integer>,
-    pub mu: Vec<Integer>,
-    pub alpha: Vec<Integer>,
-    pub gamma: Vec<Integer>,
-    pub beta: Integer,
-    pub r: Integer,
-    pub delta: Integer,
-    pub r_y: Integer,
+    pub m: Vec<BigInt>,
+    pub mu: Vec<BigInt>,
+    pub alpha: Vec<BigInt>,
+    pub gamma: Vec<BigInt>,
+    pub beta: BigInt,
+    pub r: BigInt,
+    pub delta: BigInt,
+    pub r_y: BigInt,
 }
 
 /// Verifier's challenge to prover. Can be obtained deterministically by
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
-pub type Challenge = Vec<Integer>;
+pub type Challenge = Vec<BigInt>;
 
 /// The ZK proof. Computed by [`interactive::prove`] or
 /// [`non_interactive::prove`]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
-    pub z1: Vec<Integer>,
-    pub z2: Integer,
-    pub z3: Vec<Integer>,
-    pub z4: Integer,
-    pub w: Integer,
-    pub w_y: Integer,
+    pub z1: Vec<BigInt>,
+    pub z2: BigInt,
+    pub z3: Vec<BigInt>,
+    pub z4: BigInt,
+    pub w: BigInt,
+    pub w_y: BigInt,
 }
 
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
@@ -201,11 +200,11 @@ pub struct Proof {
 pub mod interactive {
     use generic_ec::{Curve, Point};
     use rand_core::RngCore;
-    use rug::{Complete, Integer};
+    use num_bigint::BigInt;
 
     use crate::common::{fail_if, fail_if_ne, IntegerExt, InvalidProof, InvalidProofReason};
     use crate::Error;
-
+    use num_bigint::RandBigInt;
     use super::*;
 
     /// Create random commitment
@@ -217,20 +216,21 @@ pub mod interactive {
         batch_size: usize,
         mut rng: R,
     ) -> Result<(Commitment<C>, PrivateCommitment), Error> {
-        let two_to_l = (Integer::ONE << security.l_x).complete();
-        let two_to_l_y = (Integer::ONE << security.l_y).complete();
+        let mut rng = rand::thread_rng();
+        let two_to_l = BigInt::from(1) << security.l_x;
+        let two_to_l_y = BigInt::from(1) << security.l_y;
         let two_to_l_e_t =
-            (Integer::ONE << (security.l_x + security.epsilon + security.t)).complete();
+            BigInt::from(1) << (security.l_x + security.epsilon + security.t);
         let two_to_l_prime_e_t =
-            (Integer::ONE << (security.l_y + security.epsilon + security.t)).complete();
-        let hat_n_at_two_to_l = (&aux.rsa_modulo * &two_to_l).complete();
-        let hat_n_at_two_to_l_y = (&aux.rsa_modulo * &two_to_l_y).complete();
-        let hat_n_at_two_to_l_e_t = (&aux.rsa_modulo * &two_to_l_e_t).complete();
-        let hat_n_at_two_to_l_prime_e_t = (&aux.rsa_modulo * &two_to_l_prime_e_t).complete();
+            BigInt::from(1) << (security.l_y + security.epsilon + security.t);
+        let hat_n_at_two_to_l = (&aux.rsa_modulo * &two_to_l);
+        let hat_n_at_two_to_l_y = (&aux.rsa_modulo * &two_to_l_y);
+        let hat_n_at_two_to_l_e_t = (&aux.rsa_modulo * &two_to_l_e_t);
+        let hat_n_at_two_to_l_prime_e_t = (&aux.rsa_modulo * &two_to_l_prime_e_t);
 
-        let m = vec![Integer::from_rng_pm(&hat_n_at_two_to_l, &mut rng); batch_size];
-        let mu = vec![Integer::from_rng_pm(&hat_n_at_two_to_l_y, &mut rng); batch_size];
-        let alpha = vec![Integer::from_rng_pm(&two_to_l_e_t, &mut rng); batch_size];
+        let m = vec![rng.gen_bigint_range(&hat_n_at_two_to_l, -); batch_size];
+        let mu = vec![BigInt::from_rng_pm(&hat_n_at_two_to_l_y, &mut rng); batch_size];
+        let alpha = vec![BigInt::from_rng_pm(&two_to_l_e_t, &mut rng); batch_size];
         let gamma = vec![Integer::from_rng_pm(&hat_n_at_two_to_l_e_t, &mut rng); batch_size];
         let beta = Integer::from_rng_pm(&two_to_l_prime_e_t, &mut rng);
         let r = Integer::gen_invertible(data.key0.n(), &mut rng);

@@ -121,9 +121,9 @@ pub struct Proof<const M: usize> {
 /// prover gives proof with commitment and challenge.
 pub mod interactive {
     use rand_core::RngCore;
-    use rug::{Complete, Integer};
-
-    use crate::common::sqrt::{blum_sqrt, find_residue, sample_neg_jacobi};
+    use num_bigint::BigInt;
+    
+    use crate::common::sqrt::{blum_sqrt, find_residue, sample_neg_jacobi, BigIntJacobi};
     use crate::{BadExponent, Error, ErrorReason, InvalidProof, InvalidProofReason};
 
     use super::{Challenge, Commitment, Data, PrivateData, Proof, ProofPoint};

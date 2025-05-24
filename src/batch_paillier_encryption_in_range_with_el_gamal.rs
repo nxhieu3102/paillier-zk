@@ -34,7 +34,7 @@
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce, Plaintext};
 use generic_ec::{Curve, Point, Scalar};
-use rug::Integer;
+use num_bigint::BigInt;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -52,8 +52,8 @@ pub struct SecurityParams {
     /// $\varepsilon$ in paper, slackness parameter
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub q: Integer,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    pub q: BigInt,
     /// t is size of challenge
     pub t: usize,
 }
@@ -75,6 +75,7 @@ impl<C: Curve> PublicElement<C> {
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
         let order = rug::integer::Order::Msf;
+        let (c_sign, c_byte) =
         udigest::inline_struct!("paillier_zk.public_element" {
             ciphertext: udigest::Bytes(self.ciphertext.to_digits::<u8>(order)),
             b: udigest::Bytes(self.b.to_bytes(true)),

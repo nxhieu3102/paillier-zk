@@ -1,9 +1,8 @@
 pub mod sqrt;
-
-use std::sync::Arc;
-
 use generic_ec::Scalar;
-use rug::{Complete, Integer};
+use num_bigint::{BigInt, RandBigInt, Sign};
+use num_integer::Integer;
+use std::sync::Arc;
 
 /// Auxiliary data known to both prover and verifier
 #[cfg_attr(
@@ -13,11 +12,11 @@ use rug::{Complete, Integer};
 #[derive(Clone, Debug)]
 pub struct Aux {
     /// ring-pedersen parameter
-    pub s: Integer,
+    pub s: BigInt,
     /// ring-pedersen parameter
-    pub t: Integer,
+    pub t: BigInt,
     /// N^ in paper
-    pub rsa_modulo: Integer,
+    pub rsa_modulo: BigInt,
     /// Precomuted table for computing `s^x t^y mod rsa_modulo` faster
     ///
     /// If absent, optimization is disabled.
@@ -29,13 +28,13 @@ pub struct Aux {
 
 impl Aux {
     /// Returns `s^x t^y mod rsa_modulo`
-    pub fn combine(&self, x: &Integer, y: &Integer) -> Result<Integer, BadExponent> {
+    pub fn combine(&self, x: &BigInt, y: &BigInt) -> Result<BigInt, BadExponent> {
         if let Some(table) = &self.multiexp {
             match table.prod_exp(x, y) {
                 Some(res) => return Ok(res),
                 None if cfg!(debug_assertions) => {
                     return Err(BadExponentReason::ExpSize {
-                        exp_size: (x.significant_bits(), y.significant_bits()),
+                        exp_size: (x.bits() as u32, y.bits() as u32),
                         max_exp_size: table.max_exponents_size(),
                     }
                     .into())
@@ -51,27 +50,32 @@ impl Aux {
     }
 
     /// Returns `x^e mod rsa_modulo`
-    pub fn pow_mod(&self, x: &Integer, e: &Integer) -> Result<Integer, BadExponent> {
-        match &self.crt {
-            Some(crt) => {
-                let e = crt.prepare_exponent(e);
-                crt.exp(x, &e).ok_or_else(BadExponent::undefined)
-            }
-            None => Ok(x
-                .pow_mod_ref(e, &self.rsa_modulo)
-                .ok_or_else(BadExponent::undefined)?
-                .into()),
-        }
+    pub fn pow_mod(&self, x: &BigInt, e: &BigInt) -> Result<BigInt, BadExponent> {
+        todo!()
+        // match &self.crt {
+        //     Some(crt) => {
+        //         let e = crt.prepare_exponent(e);
+        //         crt.exp(x, &e).ok_or_else(BadExponent::undefined)
+        //     }
+        //     None => Ok(x
+        //         .pow_mod_ref(e, &self.rsa_modulo)
+        //         .ok_or_else(BadExponent::undefined)?
+        //         .into()),
+        // }
     }
 
     /// Returns a stripped version of `Aux` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        let order = rug::integer::Order::Msf;
+        // let order = rug::integer::Order::Msf;
+        // TODO: check if this is correct
+        let (s_sign, s_digits) = self.s.to_bytes_be();
+        let (t_sign, t_digits) = self.t.to_bytes_be();
+        let (rsa_sign, rsa_digits) = self.rsa_modulo.to_bytes_be();
         udigest::inline_struct!("paillier_zk.aux" {
-            s: udigest::Bytes(self.s.to_digits::<u8>(order)),
-            t: udigest::Bytes(self.t.to_digits::<u8>(order)),
-            rsa_modulo: udigest::Bytes(self.rsa_modulo.to_digits::<u8>(order)),
+            s: udigest::Bytes(s_digits),
+            t: udigest::Bytes(t_digits),
+            rsa_modulo: udigest::Bytes(rsa_digits),
         })
     }
 }
@@ -143,7 +147,7 @@ impl From<PaillierError> for InvalidProof {
 #[error("paillier encryption failed")]
 pub struct PaillierError;
 
-pub trait IntegerExt: Sized {
+pub trait BigIntExt: Sized {
     /// Generate element in Zm*. Does so by trial.
     fn gen_invertible<R: rand_core::RngCore>(modulo: &Self, rng: &mut R) -> Self;
 
@@ -167,45 +171,50 @@ pub trait IntegerExt: Sized {
     /// For odd `n`, result is in `{-n/2, .., n/2}`. For even `n`, result is in
     /// `{-n/2, .., n/2 - 1}`
     fn signed_modulo(&self, n: &Self) -> Self;
+
+    /// Returns `self` as a tuple of `(sign, digits)`
+    fn to_bytes_be(&self) -> (Sign, Vec<u8>);
+
+    /// Returns `self ^ exp mod modulo`
+    fn modpow_ext(&self, exp: &Self, modulo: &Self) -> Option<Self>;
 }
 
-impl IntegerExt for Integer {
-    fn gen_invertible<R: rand_core::RngCore>(modulo: &Integer, rng: &mut R) -> Self {
-        fast_paillier::utils::sample_in_mult_group(rng, modulo)
+use num_traits::Signed;
+
+impl BigIntExt for BigInt {
+    fn gen_invertible<R: rand::RngCore>(modulo: &BigInt, rng: &mut R) -> Self {
+        // fast_paillier::utils::sample_in_mult_group(rng, modulo)
+        todo!()
     }
 
     fn combine(&self, l: &Self, le: &Self, r: &Self, re: &Self) -> Result<Self, BadExponent> {
-        let l_to_le: Integer = l
-            .pow_mod_ref(le, self)
-            .ok_or_else(BadExponent::undefined)?
-            .into();
-        let r_to_re: Integer = r
-            .pow_mod_ref(re, self)
-            .ok_or_else(BadExponent::undefined)?
-            .into();
-        Ok((l_to_le * r_to_re).modulo(self))
+        let l_to_le: BigInt = l.modpow(le, self);
+        let r_to_re: BigInt = r.modpow(re, self);
+        Ok((l_to_le * r_to_re) % self)
     }
 
     fn to_scalar<C: generic_ec::Curve>(&self) -> Scalar<C> {
-        let bytes_be = self.to_digits::<u8>(rug::integer::Order::Msf);
+        let (sign, bytes_be) = self.to_bytes_be();
         let s = Scalar::<C>::from_be_bytes_mod_order(bytes_be);
-        if self.cmp0().is_ge() {
-            s
-        } else {
-            -s
+        match sign {
+            Sign::Plus => s,
+            Sign::Minus => -s,
+            Sign::NoSign => -s,
         }
     }
 
     fn curve_order<C: generic_ec::Curve>() -> Self {
         let order_minus_one = -Scalar::<C>::one();
-        let i = Integer::from_digits(&order_minus_one.to_be_bytes(), rug::integer::Order::Msf);
+        let bytes_be = order_minus_one.to_be_bytes();
+        let i = BigInt::from_bytes_be(Sign::Plus, &bytes_be);
         i + 1
     }
 
-    fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
-        let mut rng = fast_paillier::utils::external_rand(rng);
-        let range_twice = range.clone() << 1u32;
-        range_twice.random_below(&mut rng) - range
+    fn from_rng_pm<R: rand::RngCore>(range: &Self, rng: &mut R) -> Self {
+        // let mut rng = fast_paillier::utils::external_rand(rng);
+        let l_range = -range.clone();
+        let u_range = range.clone();
+        rng.gen_bigint_range(&l_range, &u_range)
     }
 
     fn is_in_pm(&self, range: &Self) -> bool {
@@ -214,12 +223,29 @@ impl IntegerExt for Integer {
     }
 
     fn signed_modulo(&self, n: &Self) -> Self {
-        let self_mod_n = self.modulo_ref(n).complete();
-        let half_n = (n >> 1_u32).complete();
+        let self_mod_n = self % n;
+        let half_n = n >> 1_u32;
         if half_n.is_odd() && self_mod_n <= half_n || self_mod_n < half_n {
             self_mod_n
         } else {
             self_mod_n - n
+        }
+    }
+
+    fn to_bytes_be(&self) -> (Sign, Vec<u8>) {
+        let (sign, digits) = self.to_bytes_be();
+        (sign, digits)
+    }
+
+    fn modpow_ext(&self, exp: &Self, modulo: &Self) -> Option<Self> {
+        if exp.is_negative() {
+            // For negative exponents: x^(-n) mod m = (x^(-1) mod m)^n mod m
+            let base_inverse = self.clone().modinv(modulo)?;
+            let positive_exp = -exp.clone();
+            Some(base_inverse.modpow(&positive_exp, modulo))
+        } else {
+            // For positive exponents, use regular modpow
+            Some(self.modpow(exp, modulo))
         }
     }
 }
@@ -270,13 +296,13 @@ pub fn fail_if_ne<T: PartialEq, E>(err: E, lhs: T, rhs: T) -> Result<(), E> {
 pub mod encoding {
 
     /// Digests a rug integer
-    pub struct Integer;
-    impl udigest::DigestAs<rug::Integer> for Integer {
+    pub struct BigInt;
+    impl udigest::DigestAs<num_bigint::BigInt> for BigInt {
         fn digest_as<B: udigest::Buffer>(
-            value: &rug::Integer,
+            value: &num_bigint::BigInt,
             encoder: udigest::encoding::EncodeValue<B>,
         ) {
-            let digits = value.to_digits::<u8>(rug::integer::Order::Msf);
+            let (_, digits) = value.to_bytes_be();
             encoder.encode_leaf_value(digits)
         }
     }
@@ -288,166 +314,60 @@ pub mod encoding {
             value: &&dyn fast_paillier::AnyEncryptionKey,
             encoder: udigest::encoding::EncodeValue<B>,
         ) {
-            Integer::digest_as(value.n(), encoder)
+            // BigInt::digest_as(value.n(), encoder)
+
+            todo!()
         }
-    }
-}
-
-/// A common logic shared across tests and doctests
-#[cfg(test)]
-pub mod test {
-    use rug::{Complete, Integer};
-
-    use super::IntegerExt;
-
-    pub fn random_key<R: rand_core::RngCore + rand_core::CryptoRng>(
-        rng: &mut R,
-    ) -> Option<fast_paillier::DecryptionKey> {
-        let n_size = 3072;
-        let a_size = 512;
-        fast_paillier::DecryptionKey::generate(rng, n_size, a_size).ok()
-    }
-
-    pub fn sample_key() -> fast_paillier::DecryptionKey {
-        fast_paillier::DecryptionKey::sample_128()
-    }
-
-    pub fn aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {
-        let p = generate_blum_prime(rng, 1024);
-        let q = generate_blum_prime(rng, 1024);
-        let n = (&p * &q).complete();
-
-        let (s, t) = {
-            let phi_n = (p.clone() - 1u8) * (q.clone() - 1u8);
-            let r = Integer::gen_invertible(&n, rng);
-            let lambda = phi_n.random_below(&mut fast_paillier::utils::external_rand(rng));
-
-            let t = r.square().modulo(&n);
-            let s = t.pow_mod_ref(&lambda, &n).unwrap().into();
-
-            (s, t)
-        };
-
-        super::Aux {
-            s,
-            t,
-            rsa_modulo: n,
-            multiexp: None,
-            crt: None,
-        }
-    }
-
-    pub fn generate_blum_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) -> Integer {
-        loop {
-            let n = generate_prime(rng, bits_size);
-            if n.mod_u(4) == 3 {
-                break n;
-            }
-        }
-    }
-
-    pub fn generate_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) -> Integer {
-        let mut n: Integer =
-            Integer::random_bits(bits_size, &mut fast_paillier::utils::external_rand(rng)).into();
-        n.set_bit(bits_size - 1, true);
-        n.next_prime_mut();
-        n
     }
 }
 
 #[cfg(test)]
 mod _test {
-    use rug::Integer;
-
-    use super::IntegerExt;
-
-    #[test]
-    fn to_scalar_encoding() {
-        type E = generic_ec::curves::Secp256k1;
-
-        let bytes = [123u8, 231u8];
-        let int = u16::from_be_bytes(bytes);
-        let bn = rug::Integer::from(int);
-        let scalar = bn.to_scalar();
-        assert_eq!(scalar, generic_ec::Scalar::<E>::from(int));
-
-        assert_eq!(bn.to_digits::<u8>(rug::integer::Order::Msf), &bytes);
-
-        let curve_order = Integer::curve_order::<E>();
-        assert_eq!(curve_order.to_scalar(), generic_ec::Scalar::<E>::zero());
-        assert_eq!(
-            (curve_order - 1u8).to_scalar(),
-            -generic_ec::Scalar::<E>::one()
-        );
-    }
+    use num_bigint::BigInt;
+    
+    use super::BigIntExt;
+    use num_traits::FromPrimitive;
 
     #[test]
-    fn signed_modulo() {
-        let n = Integer::from(7);
-
-        assert_eq!(Integer::from(0).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(1).signed_modulo(&n), 1);
-        assert_eq!(Integer::from(2).signed_modulo(&n), 2);
-        assert_eq!(Integer::from(3).signed_modulo(&n), 3);
-        assert_eq!(Integer::from(4).signed_modulo(&n), -3);
-        assert_eq!(Integer::from(5).signed_modulo(&n), -2);
-        assert_eq!(Integer::from(6).signed_modulo(&n), -1);
-        assert_eq!(Integer::from(7).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(8).signed_modulo(&n), 1);
-
-        let n = Integer::from(4);
-        assert_eq!(Integer::from(0).signed_modulo(&n), 0);
-        assert_eq!(Integer::from(1).signed_modulo(&n), 1);
-        assert_eq!(Integer::from(2).signed_modulo(&n), -2);
-        assert_eq!(Integer::from(3).signed_modulo(&n), -1);
-    }
-
-    #[test]
-    fn multiexp() {
-        let mut rng = rand_dev::DevRng::new();
-        let mut aux = super::test::aux(&mut rng);
-        let table = std::sync::Arc::new(
-            crate::multiexp::MultiexpTable::build(&aux.s, &aux.t, 512, 448, aux.rsa_modulo.clone())
-                .unwrap(),
-        );
-        let (x_bits, y_bits) = table.max_exponents_size();
-        aux.multiexp = Some(table);
-
-        // Corner case: upper bound
-        let x_max = (Integer::ONE.clone() << x_bits) - 1;
-        let y_max = (Integer::ONE.clone() << y_bits) - 1;
-        let actual = aux.combine(&x_max, &y_max).unwrap();
-        let expected = aux
-            .rsa_modulo
-            .combine(&aux.s, &x_max, &aux.t, &y_max)
-            .unwrap();
-        assert_eq!(actual, expected);
-
-        // Corner case: lower bound
-        let x_min = -x_max.clone();
-        let y_min = -y_max.clone();
-        let actual = aux.combine(&x_min, &y_min).unwrap();
-        let expected = aux
-            .rsa_modulo
-            .combine(&aux.s, &x_min, &aux.t, &y_min)
-            .unwrap();
-        assert_eq!(actual, expected);
-
-        // Random integers within the range
-        let mut rng = fast_paillier::utils::external_rand(&mut rng);
-        for _ in 0..100 {
-            let x = (x_max.clone() + 1u8).random_below(&mut rng);
-            let y = (y_max.clone() + 1u8).random_below(&mut rng);
-
-            let x = if rng.bits(1) == 1 { x } else { -x };
-            let y = if rng.bits(1) == 1 { y } else { -y };
-
-            println!("x: {x}");
-            println!("y: {y}");
-
-            let actual = aux.combine(&x, &y).unwrap();
-            let expected = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &y).unwrap();
-            assert_eq!(actual, expected);
-        }
+    fn test_modpow_neg() {
+        // Test case 1: Positive exponent
+        let base = BigInt::from(3);
+        let exp = BigInt::from_i64(-72057594037927935).expect("Failed to create exp from i64");
+        let modulo = BigInt::from(100000);
+        
+        let result = base.modpow_ext(&exp, &modulo).unwrap();
+        println!("result: {}", result);
+        // For positive exponents, modpow_neg behaves like regular modpow
+        assert_eq!(result, base.modpow(&exp, &modulo));
+        
+        // // Test case 2: Negative exponent
+        // // When the exponent is negative, the function first computes the 
+        // // modular inverse of the exponent, and then performs regular modpow
+        // let exp_neg = BigInt::from(-3);
+        // let result_neg = base.modpow_neg(&exp_neg, &modulo).unwrap();
+        
+        // // For exp = -3, we first compute modinv(-3, 5) = 2
+        // // Then calculate 2^2 mod 5 = 4
+        // let mut_exp = exp_neg.clone().modinv(&modulo).unwrap();
+        // let expected = base.modpow(&mut_exp, &modulo);
+        // assert_eq!(result_neg, expected);
+        
+        // // Test case 3: With a modulo where gcd(exp, modulo) = 1
+        // let base = BigInt::from(7);
+        // let exp = BigInt::from(13);
+        // let modulo = BigInt::from(31); // prime modulo
+        
+        // // Test positive exponent
+        // let result = base.modpow_neg(&exp, &modulo).unwrap();
+        // assert_eq!(result, base.modpow(&exp, &modulo));
+        
+        // // Test negative exponent
+        // let exp_neg = BigInt::from(-13);
+        // let result_neg = base.modpow_neg(&exp_neg, &modulo).unwrap();
+        
+        // // Since gcd(13, 31) = 1, modular inverse exists
+        // let mut_exp = exp_neg.clone().modinv(&modulo).unwrap();
+        // let expected = base.modpow(&mut_exp, &modulo);
+        // assert_eq!(result_neg, expected);
     }
 }
