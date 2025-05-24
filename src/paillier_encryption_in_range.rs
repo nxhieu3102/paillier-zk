@@ -13,8 +13,8 @@
 //! ## Example
 //!
 //! ```
-//! use paillier_zk::{paillier_encryption_in_range as p, IntegerExt};
-//! use rug::{Integer, Complete};
+//! use paillier_zk::{paillier_encryption_in_range as p, BigIntExt};
+//! use rug::{BigInt, Complete};
 //! # mod pregenerated {
 //! #     use super::*;
 //! #     paillier_zk::load_pregenerated_data!(
@@ -35,7 +35,7 @@
 //! let security = p::SecurityParams {
 //!     l: 1024,
 //!     epsilon: 128,
-//!     q: (Integer::ONE << 128_u32).into(),
+//!     q: (BigInt::from(1) << 128_u32).into(),
 //! };
 //!
 //! // 1. Setup: prover prepares the paillier keys
@@ -46,7 +46,7 @@
 //!
 //! // 2. Setup: prover has some plaintext and encrypts it
 //!
-//! let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+//! let plaintext = BigInt::from_rng_pm(&(BigInt::from(1) << security.l), &mut rng);
 //! let (ciphertext, nonce) = key.encrypt_with_random(&mut rng, &plaintext)?;
 //!
 //! // 3. Prover computes a non-interactive proof that plaintext is at most 1024 bits:
@@ -87,7 +87,7 @@
 //! If the verification succeeded, verifier can continue communication with prover
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
-use rug::Integer;
+use num_bigint::BigInt;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -106,7 +106,7 @@ pub struct SecurityParams {
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
-    pub q: Integer,
+    pub q: BigInt,
 }
 
 /// Public data that both parties know
@@ -116,7 +116,7 @@ pub struct Data<'a> {
     #[udigest(as = crate::common::encoding::AnyEncryptionKey)]
     pub key: &'a dyn AnyEncryptionKey,
     /// K in paper
-    #[udigest(as = &crate::common::encoding::Integer)]
+    #[udigest(as = &crate::common::encoding::BigInt)]
     pub ciphertext: &'a Ciphertext,
 }
 
@@ -124,7 +124,7 @@ pub struct Data<'a> {
 #[derive(Clone, Copy)]
 pub struct PrivateData<'a> {
     /// k in paper, plaintext of K
-    pub plaintext: &'a Integer,
+    pub plaintext: &'a BigInt,
     /// rho in paper, nonce of encryption k -> K
     pub nonce: &'a Nonce,
 }
@@ -134,27 +134,27 @@ pub struct PrivateData<'a> {
 #[derive(Debug, Clone, udigest::Digestable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub s: Integer,
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub a: Integer,
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub c: Integer,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    pub s: BigInt,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    pub a: BigInt,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    pub c: BigInt,
 }
 
 /// Prover's data accompanying the commitment. Kept as state between rounds in
 /// the interactive protocol.
 #[derive(Clone)]
 pub struct PrivateCommitment {
-    pub alpha: Integer,
-    pub mu: Integer,
-    pub r: Integer,
-    pub gamma: Integer,
+    pub alpha: BigInt,
+    pub mu: BigInt,
+    pub r: BigInt,
+    pub gamma: BigInt,
 }
 
 /// Verifier's challenge to prover. Can be obtained deterministically by
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
-pub type Challenge = Integer;
+pub type Challenge = BigInt;
 
 // As described in cggmp21 at page 33
 /// The ZK proof. Computed by [`interactive::prove`] or
@@ -162,24 +162,24 @@ pub type Challenge = Integer;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
-    pub z1: Integer,
-    pub z2: Integer,
-    pub z3: Integer,
+    pub z1: BigInt,
+    pub z2: BigInt,
+    pub z3: BigInt,
 }
 
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
 pub mod interactive {
-    use rand_core::RngCore;
-    use rug::{Complete, Integer};
-
+    use crate::common::{BigIntExt, InvalidProof};
     use crate::{
         common::{fail_if, fail_if_ne, InvalidProofReason},
         Error,
     };
-
-    use crate::common::{IntegerExt, InvalidProof};
+    use num_bigint::BigInt;
+    use num_integer::Integer;
+    use num_traits::One;
+    use rand_core::RngCore;
 
     use super::{
         Aux, Challenge, Commitment, Data, PrivateCommitment, PrivateData, Proof, SecurityParams,
@@ -193,16 +193,16 @@ pub mod interactive {
         security: &SecurityParams,
         rng: &mut R,
     ) -> Result<(Commitment, PrivateCommitment), Error> {
-        let two_to_l_plus_e = (Integer::ONE << (security.l + security.epsilon)).complete();
-        let hat_n_at_two_to_l = (Integer::ONE << security.l).complete() * &aux.rsa_modulo;
+        let two_to_l_plus_e = (BigInt::from(1) << (security.l + security.epsilon));
+        let hat_n_at_two_to_l = (BigInt::from(1) << security.l) * &aux.rsa_modulo;
         let hat_n_at_two_to_l_plus_e =
-            (Integer::ONE << (security.l + security.epsilon)).complete() * &aux.rsa_modulo;
+            (BigInt::from(1) << (security.l + security.epsilon)) * &aux.rsa_modulo;
 
-        let alpha = Integer::from_rng_pm(&two_to_l_plus_e, rng);
-        let mu = Integer::from_rng_pm(&hat_n_at_two_to_l, rng);
+        let alpha = BigInt::from_rng_pm(&two_to_l_plus_e, rng);
+        let mu = BigInt::from_rng_pm(&hat_n_at_two_to_l, rng);
         // TODO: r can be a random from natural set (Z_N)
-        let r = Integer::gen_invertible(data.key.n(), rng);
-        let gamma = Integer::from_rng_pm(&hat_n_at_two_to_l_plus_e, rng);
+        let r = BigInt::gen_invertible(data.key.n(), rng);
+        let gamma = BigInt::from_rng_pm(&hat_n_at_two_to_l_plus_e, rng);
 
         let s = aux.combine(pdata.plaintext, &mu)?;
         let a = data.key.encrypt_with(&alpha, &r)?;
@@ -226,10 +226,10 @@ pub mod interactive {
         private_commitment: &PrivateCommitment,
         challenge: &Challenge,
     ) -> Result<Proof, Error> {
-        let z1 = (&private_commitment.alpha + (challenge * pdata.plaintext)).complete();
+        let z1 = (&private_commitment.alpha + (challenge * pdata.plaintext));
         // TODO: recheck
-        let z2 = (&private_commitment.r + (challenge * pdata.nonce)).complete();
-        let z3 = (&private_commitment.gamma + (challenge * &private_commitment.mu)).complete();
+        let z2 = (&private_commitment.r + (challenge * pdata.nonce));
+        let z3 = (&private_commitment.gamma + (challenge * &private_commitment.mu));
         Ok(Proof { z1, z2, z3 })
     }
 
@@ -245,8 +245,8 @@ pub mod interactive {
         {
             fail_if_ne(
                 InvalidProofReason::EqualityCheck(1),
-                &data.ciphertext.gcd_ref(data.key.n()).complete(),
-                Integer::ONE,
+                data.ciphertext.gcd(data.key.n()),
+                BigInt::one(),
             )?;
         }
         {
@@ -269,7 +269,7 @@ pub mod interactive {
         {
             let lhs = aux.combine(&proof.z1, &proof.z3)?;
             let s_to_e = aux.pow_mod(&commitment.s, challenge)?;
-            let rhs = (&commitment.c * s_to_e).modulo(&aux.rsa_modulo);
+            let rhs = (&commitment.c * s_to_e) % (&aux.rsa_modulo);
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
         }
 
@@ -277,7 +277,7 @@ pub mod interactive {
             InvalidProofReason::RangeCheck(4),
             proof
                 .z1
-                .is_in_pm(&(Integer::ONE << (security.l + security.epsilon)).complete()),
+                .is_in_pm(&(BigInt::from(1) << (security.l + security.epsilon))),
         )?;
 
         Ok(())
@@ -287,7 +287,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
-        Integer::from_rng_pm(&security.q, rng)
+        BigInt::from_rng_pm(&security.q, rng)
     }
 }
 
@@ -353,18 +353,18 @@ pub mod non_interactive {
 
 #[cfg(test)]
 mod test {
-    use rug::{Complete, Integer};
+    use num_bigint::BigInt;
     use sha2::Digest;
 
-    use crate::common::{IntegerExt, InvalidProofReason};
+    use crate::common::{BigIntExt, InvalidProofReason};
 
     fn run_with<D: Digest>(
         mut rng: &mut impl rand_core::CryptoRngCore,
         security: super::SecurityParams,
-        plaintext: Integer,
+        plaintext: BigInt,
     ) -> Result<(), crate::common::InvalidProof> {
         let aux = crate::common::test::aux(&mut rng);
-        let private_key = crate::common::test::random_key(&mut rng).unwrap();
+        let private_key = crate::common::test::sample_key();
         let key = private_key.encryption_key();
         let (ciphertext, nonce) = key.encrypt_with_random(&mut rng, &plaintext).unwrap();
         let data = super::Data {
@@ -396,9 +396,9 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 256,
-            q: (Integer::ONE << 128_u32).complete() - 1,
+            q: (BigInt::from(1) << 128_u32) - 1,
         };
-        let plaintext = Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+        let plaintext = BigInt::from_rng_pm(&(BigInt::from(1) << security.l), &mut rng);
         let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
         match r {
             Ok(()) => (),
@@ -411,9 +411,9 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 256,
-            q: (Integer::ONE << 128_u32).complete() - 1,
+            q: (BigInt::from(1) << 128_u32) - 1,
         };
-        let plaintext = (Integer::ONE << (security.l + security.epsilon)).complete() + 1;
+        let plaintext = (BigInt::from(1) << (security.l + security.epsilon)) + 1;
         let r = run_with::<sha2::Sha256>(&mut rng, security, plaintext);
         match r.map_err(|e| e.reason()) {
             Ok(()) => panic!("proof should not pass"),

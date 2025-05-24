@@ -510,7 +510,7 @@ mod test {
     use rug::{Complete, Integer};
     use sha2::Digest;
 
-    use crate::common::test::random_key;
+    use crate::common::test::{sample_key, sample_other_key};
     use crate::common::{IntegerExt, InvalidProofReason};
 
     fn run<R: rand_core::RngCore + rand_core::CryptoRng, C: Curve, D: Digest>(
@@ -519,8 +519,8 @@ mod test {
         x: Integer,
         y: Integer,
     ) -> Result<(), crate::common::InvalidProof> {
-        let dk0 = random_key(rng).unwrap();
-        let dk1 = random_key(rng).unwrap();
+        let dk0 = sample_key();
+        let dk1 = sample_other_key();
         let ek0 = dk0.encryption_key().clone();
         let ek1 = dk1.encryption_key().clone();
 

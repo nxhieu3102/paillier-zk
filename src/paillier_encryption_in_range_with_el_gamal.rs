@@ -399,7 +399,7 @@ mod test {
     ) -> Result<(), crate::common::InvalidProof> {
         let aux = crate::common::test::aux(&mut rng);
 
-        let private_key = crate::common::test::random_key(&mut rng).unwrap();
+        let private_key = crate::common::test::sample_128();
         let a = Scalar::random(rng);
         let pdata = super::PrivateData {
             plaintext: &plaintext,

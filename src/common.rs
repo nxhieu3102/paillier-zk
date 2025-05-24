@@ -51,27 +51,25 @@ impl Aux {
 
     /// Returns `x^e mod rsa_modulo`
     pub fn pow_mod(&self, x: &BigInt, e: &BigInt) -> Result<BigInt, BadExponent> {
-        todo!()
-        // match &self.crt {
-        //     Some(crt) => {
-        //         let e = crt.prepare_exponent(e);
-        //         crt.exp(x, &e).ok_or_else(BadExponent::undefined)
-        //     }
-        //     None => Ok(x
-        //         .pow_mod_ref(e, &self.rsa_modulo)
-        //         .ok_or_else(BadExponent::undefined)?
-        //         .into()),
-        // }
+        match &self.crt {
+            Some(crt) => {
+                let e = crt.prepare_exponent(e);
+                crt.exp(x, &e).ok_or_else(BadExponent::undefined)
+            }
+            None => Ok(x
+                .modpow_ext(e, &self.rsa_modulo)
+                .ok_or_else(BadExponent::undefined)?
+                .into()),
+        }
     }
 
     /// Returns a stripped version of `Aux` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        // let order = rug::integer::Order::Msf;
         // TODO: check if this is correct
-        let (s_sign, s_digits) = self.s.to_bytes_be();
-        let (t_sign, t_digits) = self.t.to_bytes_be();
-        let (rsa_sign, rsa_digits) = self.rsa_modulo.to_bytes_be();
+        let (_s_sign, s_digits) = self.s.to_bytes_be();
+        let (_t_sign, t_digits) = self.t.to_bytes_be();
+        let (_rsa_sign, rsa_digits) = self.rsa_modulo.to_bytes_be();
         udigest::inline_struct!("paillier_zk.aux" {
             s: udigest::Bytes(s_digits),
             t: udigest::Bytes(t_digits),
@@ -183,8 +181,7 @@ use num_traits::Signed;
 
 impl BigIntExt for BigInt {
     fn gen_invertible<R: rand::RngCore>(modulo: &BigInt, rng: &mut R) -> Self {
-        // fast_paillier::utils::sample_in_mult_group(rng, modulo)
-        todo!()
+        fast_paillier::utils::sample_in_mult_group(rng, modulo)
     }
 
     fn combine(&self, l: &Self, le: &Self, r: &Self, re: &Self) -> Result<Self, BadExponent> {
@@ -314,60 +311,117 @@ pub mod encoding {
             value: &&dyn fast_paillier::AnyEncryptionKey,
             encoder: udigest::encoding::EncodeValue<B>,
         ) {
-            // BigInt::digest_as(value.n(), encoder)
-
-            todo!()
+            BigInt::digest_as(value.n(), encoder)
         }
+    }
+}
+
+/// A common logic shared across tests and doctests
+#[cfg(test)]
+pub mod test {
+    use super::BigIntExt;
+    use num_bigint::BigInt;
+    use num_bigint::RandBigInt;
+
+    pub fn random_key<R: rand_core::RngCore + rand_core::CryptoRng>(
+        rng: &mut R,
+    ) -> Option<fast_paillier::DecryptionKey> {
+        let n_size = 3072;
+        let a_size = 512;
+        fast_paillier::DecryptionKey::generate(rng, n_size, a_size).ok()
+    }
+
+    pub fn sample_key() -> fast_paillier::DecryptionKey {
+        fast_paillier::DecryptionKey::sample_128()
+    }
+
+    pub fn sample_other_key() -> fast_paillier::DecryptionKey {
+        fast_paillier::DecryptionKey::sample_other_128()
+    }
+
+    pub fn aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {
+        let p = generate_blum_prime(rng, 1024);
+        let q = generate_blum_prime(rng, 1024);
+        let n = &p * &q;
+
+        let (s, t) = {
+            let phi_n = (p.clone() - 1u8) * (q.clone() - 1u8);
+            let r = BigInt::gen_invertible(&n, rng);
+            let lambda = rng.gen_bigint_range(&BigInt::ZERO, &phi_n);
+
+            let t = (&r * &r) % &n;
+            let s = t.modpow(&lambda, &n);
+
+            (s, t)
+        };
+
+        super::Aux {
+            s,
+            t,
+            rsa_modulo: n,
+            multiexp: None,
+            crt: None,
+        }
+    }
+
+    pub fn generate_blum_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) -> BigInt {
+        loop {
+            let n = generate_prime(rng, bits_size);
+            if &n % 4 == BigInt::from(3) {
+                assert_eq!(n.clone() % 4, BigInt::from(3));
+                break n;
+            }
+        }
+    }
+
+    pub fn generate_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) -> BigInt {
+        fast_paillier::utils::generate_safe_prime(rng, bits_size)
     }
 }
 
 #[cfg(test)]
 mod _test {
     use num_bigint::BigInt;
-    
+
     use super::BigIntExt;
-    use num_traits::FromPrimitive;
 
     #[test]
-    fn test_modpow_neg() {
+    fn test_modpow_ext() {
         // Test case 1: Positive exponent
         let base = BigInt::from(3);
-        let exp = BigInt::from_i64(-72057594037927935).expect("Failed to create exp from i64");
-        let modulo = BigInt::from(100000);
-        
+        let exp = BigInt::from(5);
+        let modulo = BigInt::from(10);
         let result = base.modpow_ext(&exp, &modulo).unwrap();
-        println!("result: {}", result);
-        // For positive exponents, modpow_neg behaves like regular modpow
-        assert_eq!(result, base.modpow(&exp, &modulo));
-        
-        // // Test case 2: Negative exponent
-        // // When the exponent is negative, the function first computes the 
-        // // modular inverse of the exponent, and then performs regular modpow
-        // let exp_neg = BigInt::from(-3);
-        // let result_neg = base.modpow_neg(&exp_neg, &modulo).unwrap();
-        
-        // // For exp = -3, we first compute modinv(-3, 5) = 2
-        // // Then calculate 2^2 mod 5 = 4
-        // let mut_exp = exp_neg.clone().modinv(&modulo).unwrap();
-        // let expected = base.modpow(&mut_exp, &modulo);
-        // assert_eq!(result_neg, expected);
-        
-        // // Test case 3: With a modulo where gcd(exp, modulo) = 1
-        // let base = BigInt::from(7);
-        // let exp = BigInt::from(13);
-        // let modulo = BigInt::from(31); // prime modulo
-        
-        // // Test positive exponent
-        // let result = base.modpow_neg(&exp, &modulo).unwrap();
-        // assert_eq!(result, base.modpow(&exp, &modulo));
-        
-        // // Test negative exponent
-        // let exp_neg = BigInt::from(-13);
-        // let result_neg = base.modpow_neg(&exp_neg, &modulo).unwrap();
-        
-        // // Since gcd(13, 31) = 1, modular inverse exists
-        // let mut_exp = exp_neg.clone().modinv(&modulo).unwrap();
-        // let expected = base.modpow(&mut_exp, &modulo);
-        // assert_eq!(result_neg, expected);
+        let expected = base.modpow(&exp, &modulo);
+        assert_eq!(result, expected);
+
+        // Test case 2: Negative exponent
+        let exp_neg = BigInt::from(-5);
+        let result_neg = base.modpow_ext(&exp_neg, &modulo).unwrap();
+
+        // Since 3^5 mod 10 = 3, we need modinv(3, 10)
+        // So: 3^(-5) ≡ modinv(3, 10) = 7
+        // => 7 is inverse of 3 mod 10, and (7^5) % 10 = 7
+        let expected = BigInt::from(7);
+        assert_eq!(result_neg, expected);
+
+        // Test case 3: Positive and Negative exponent with prime modulo
+        let base = BigInt::from(7);
+        let exp = BigInt::from(13);
+        let modulo = BigInt::from(31); // prime modulo
+
+        // Positive exponent
+        let result = base.modpow_ext(&exp, &modulo).unwrap();
+        let expected = base.modpow(&exp, &modulo);
+        assert_eq!(result, expected);
+
+        // Negative exponent
+        let exp_neg = BigInt::from(-13);
+        let result_neg = base.modpow_ext(&exp_neg, &modulo).unwrap();
+
+        // Compute base^-13 mod 31 = (modinv(base, 31))^13 mod 31
+        let base_inv = base.modinv(&modulo).unwrap();
+        let expected = base_inv.modpow(&(-exp_neg), &modulo);
+        assert_eq!(result_neg, expected);
     }
 }

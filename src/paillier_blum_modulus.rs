@@ -8,14 +8,14 @@
 //! ## Example
 //! ```rust
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use rug::{Integer, Complete};
+//! use rug::{BigInt, Complete};
 //! let mut rng = rand_core::OsRng;
 //! # let mut rng = rand_dev::DevRng::new();
 //!
 //! // 0. Prover P derives two Blum primes and makes a Paillier-Blum modulus
 //! let p = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
 //! let q = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
-//! let n = (&p * &q).complete();
+//! let n = (&p * &q);
 //!
 //! // 1. P computes a non-interactive proof that `n` is a Paillier-Blum modulus:
 //! use paillier_zk::paillier_blum_modulus as p;
@@ -56,7 +56,7 @@
 //! ```
 //! If the verification succeeded, V can continue communication with P
 
-use rug::Integer;
+use num_bigint::BigInt;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -65,23 +65,23 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, udigest::Digestable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Data {
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub n: Integer,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    pub n: BigInt,
 }
 
 /// Private data of prover
 #[derive(Clone)]
 pub struct PrivateData {
-    pub p: Integer,
-    pub q: Integer,
+    pub p: BigInt,
+    pub q: BigInt,
 }
 
 /// Prover's first message, obtained by [`interactive::commit`]
 #[derive(Debug, Clone, udigest::Digestable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub w: Integer,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    pub w: BigInt,
 }
 
 /// Verifier's challenge to prover. Can be obtained deterministically by
@@ -90,17 +90,17 @@ pub struct Commitment {
 /// Consists of `M` singular challenges
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Challenge<const M: usize> {
-    pub ys: [Integer; M],
+    pub ys: [BigInt; M],
 }
 
 /// A part of proof. Having enough of those guarantees security
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProofPoint {
-    pub x: Integer,
+    pub x: BigInt,
     pub a: bool,
     pub b: bool,
-    pub z: Integer,
+    pub z: BigInt,
 }
 
 /// The ZK proof. Computed by [`interactive::prove`] or
@@ -120,11 +120,14 @@ pub struct Proof<const M: usize> {
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
 pub mod interactive {
-    use rand_core::RngCore;
-    use num_bigint::BigInt;
-    
     use crate::common::sqrt::{blum_sqrt, find_residue, sample_neg_jacobi, BigIntJacobi};
     use crate::{BadExponent, Error, ErrorReason, InvalidProof, InvalidProofReason};
+    use fast_paillier::common::BigIntExt;
+    use fast_paillier::utils::is_prime;
+    use num_bigint::BigInt;
+    use num_bigint::RandBigInt;
+    use num_integer::Integer;
+    use rand_core::RngCore;
 
     use super::{Challenge, Commitment, Data, PrivateData, Proof, ProofPoint};
 
@@ -143,8 +146,8 @@ pub mod interactive {
         challenge: &Challenge<M>,
     ) -> Result<Proof<M>, Error> {
         let blum_sqrt = |x| blum_sqrt(&x, p, q, n);
-        let phi = (p - 1u8).complete() * (q - 1u8).complete();
-        let n_inverse = n.invert_ref(&phi).ok_or(ErrorReason::Invert)?.into();
+        let phi = (p - 1u8) * (q - 1u8);
+        let n_inverse = n.modinv(&phi).ok_or(ErrorReason::Invert)?.into();
 
         // We do an extra allocation as workaround while `array::try_map` is not stable
         let points = challenge
@@ -152,7 +155,7 @@ pub mod interactive {
             .iter()
             .map(|y| {
                 let z = y
-                    .pow_mod_ref(&n_inverse, n)
+                    .modpow_ext(&n_inverse, n)
                     .ok_or(BadExponent::undefined())?
                     .into();
                 let (a, b, y_) = find_residue(y, w, p, q, n).ok_or(ErrorReason::FindResidue)?;
@@ -173,17 +176,17 @@ pub mod interactive {
         challenge: &Challenge<M>,
         proof: &Proof<M>,
     ) -> Result<(), InvalidProof> {
-        if data.n.is_probably_prime(25) != rug::integer::IsPrime::No {
+        if is_prime(&data.n) {
             return Err(InvalidProofReason::ModulusIsPrime.into());
         }
         if data.n.is_even() {
             return Err(InvalidProofReason::ModulusIsEven.into());
         }
         for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
-            if Integer::from(
+            if BigInt::from(
                 point
                     .z
-                    .pow_mod_ref(&data.n, &data.n)
+                    .modpow_ext(&data.n, &data.n)
                     .ok_or(InvalidProofReason::ModPow)?,
             ) != *y
             {
@@ -192,14 +195,14 @@ pub mod interactive {
             let y = y.clone();
             let y = if point.a { &data.n - y } else { y };
             let y = if point.b {
-                (y * &commitment.w).modulo(&data.n)
+                (y * &commitment.w) % &data.n
             } else {
                 y
             };
-            if Integer::from(
+            if BigInt::from(
                 point
                     .x
-                    .pow_mod_ref(&4.into(), &data.n)
+                    .modpow_ext(&4.into(), &data.n)
                     .ok_or(InvalidProofReason::ModPow)?,
             ) != y
             {
@@ -216,10 +219,7 @@ pub mod interactive {
         Data { ref n }: &Data,
         rng: &mut R,
     ) -> Challenge<M> {
-        let ys = [(); M].map(|()| {
-            n.random_below_ref(&mut fast_paillier::utils::external_rand(rng))
-                .into()
-        });
+        let ys = [(); M].map(|()| rng.gen_bigint_range(&BigInt::ZERO, n));
         Challenge { ys }
     }
 }
@@ -228,6 +228,7 @@ pub mod interactive {
 /// see the documentation of parent module.
 pub mod non_interactive {
     use digest::Digest;
+    use num_bigint::{BigInt, RandBigInt};
 
     use crate::{Error, InvalidProof};
 
@@ -273,20 +274,16 @@ pub mod non_interactive {
             commitment,
         });
         let mut rng = rand_hash::HashRng::<D, _>::from_seed(seed);
-        // since we can't use Default and Integer isn't copy, we initialize
+        // since we can't use Default and BigInt isn't copy, we initialize
         // like this
-        let ys = [(); M].map(|()| {
-            data.n
-                .random_below_ref(&mut fast_paillier::utils::external_rand(&mut rng))
-                .into()
-        });
+        let ys = [(); M].map(|()| rng.gen_bigint_range(&BigInt::ZERO, &data.n));
         Challenge { ys }
     }
 }
 
 #[cfg(test)]
 mod test {
-    use rug::Complete;
+    use num_bigint::BigInt;
 
     use crate::common::test::{generate_blum_prime, generate_prime};
 
@@ -297,7 +294,7 @@ mod test {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 256);
         let q = generate_blum_prime(&mut rng, 256);
-        let n = (&p * &q).complete();
+        let n = &p * &q;
         let data = super::Data { n };
         let pdata = super::PrivateData { p, q };
         let shared_state = "shared state";
@@ -317,11 +314,11 @@ mod test {
         let q = loop {
             // non blum prime
             let q = generate_prime(&mut rng, 256);
-            if q.mod_u(4) == 1 {
+            if &q % 4 == BigInt::from(1u8) {
                 break q;
             }
         };
-        let n = (&p * &q).complete();
+        let n = &p * &q;
         let data = super::Data { n };
         let pdata = super::PrivateData { p, q };
         let shared_state = "shared state";

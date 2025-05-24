@@ -8,16 +8,20 @@
 use thiserror::Error;
 
 mod common;
+pub mod dlog_with_el_gamal_commitment;
 pub mod multiexp;
-// pub mod batch_paillier_affine_operation_in_range;
+
+pub mod batch_paillier_affine_operation_in_range;
 pub mod batch_paillier_encryption_in_range_with_el_gamal;
-// pub mod dlog_with_el_gamal_commitment;
+pub mod paillier_blum_modulus;
+pub mod paillier_encryption_in_range;
+
+// DO NOT USE IN CGGMP21 VERSION 2024
 // pub mod group_element_vs_paillier_encryption_in_range;
 // pub mod no_small_factor;
 // pub mod paillier_affine_operation_in_range;
-// pub mod paillier_blum_modulus;
-// pub mod paillier_encryption_in_range;
 // pub mod paillier_encryption_in_range_with_el_gamal;
+
 #[cfg(test)]
 mod curve;
 
@@ -29,7 +33,7 @@ pub mod _doctest;
 
 use common::InvalidProofReason;
 pub use common::{BadExponent, BigIntExt, InvalidProof, PaillierError};
-pub use {fast_paillier};
+pub use fast_paillier;
 
 /// Library general error type
 #[derive(Debug, Error)]
