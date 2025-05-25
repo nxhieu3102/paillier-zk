@@ -193,7 +193,7 @@ pub mod interactive {
         security: &SecurityParams,
         rng: &mut R,
     ) -> Result<(Commitment, PrivateCommitment), Error> {
-        let two_to_l_plus_e = (BigInt::from(1) << (security.l + security.epsilon));
+        let two_to_l_plus_e = BigInt::from(1) << (security.l + security.epsilon);
         let hat_n_at_two_to_l = (BigInt::from(1) << security.l) * &aux.rsa_modulo;
         let hat_n_at_two_to_l_plus_e =
             (BigInt::from(1) << (security.l + security.epsilon)) * &aux.rsa_modulo;
@@ -226,10 +226,10 @@ pub mod interactive {
         private_commitment: &PrivateCommitment,
         challenge: &Challenge,
     ) -> Result<Proof, Error> {
-        let z1 = (&private_commitment.alpha + (challenge * pdata.plaintext));
+        let z1 = &private_commitment.alpha + (challenge * pdata.plaintext);
         // TODO: recheck
-        let z2 = (&private_commitment.r + (challenge * pdata.nonce));
-        let z3 = (&private_commitment.gamma + (challenge * &private_commitment.mu));
+        let z2 = &private_commitment.r + (challenge * pdata.nonce);
+        let z3 = &private_commitment.gamma + (challenge * &private_commitment.mu);
         Ok(Proof { z1, z2, z3 })
     }
 
@@ -269,7 +269,7 @@ pub mod interactive {
         {
             let lhs = aux.combine(&proof.z1, &proof.z3)?;
             let s_to_e = aux.pow_mod(&commitment.s, challenge)?;
-            let rhs = (&commitment.c * s_to_e) % (&aux.rsa_modulo);
+            let rhs = (&commitment.c * s_to_e).mod_floor(&aux.rsa_modulo);
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
         }
 
@@ -405,6 +405,7 @@ mod test {
             Err(e) => panic!("{e:?}"),
         }
     }
+
     #[test]
     fn failing() {
         let mut rng = rand_dev::DevRng::new();

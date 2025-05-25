@@ -1,7 +1,7 @@
 pub mod sqrt;
 use generic_ec::Scalar;
 use num_bigint::{BigInt, RandBigInt, Sign};
-use num_integer::Integer;
+use num_integer::Integer; // This brings the Integer trait (and mod_floor) into scope
 use std::sync::Arc;
 
 /// Auxiliary data known to both prover and verifier
@@ -185,9 +185,13 @@ impl BigIntExt for BigInt {
     }
 
     fn combine(&self, l: &Self, le: &Self, r: &Self, re: &Self) -> Result<Self, BadExponent> {
-        let l_to_le: BigInt = l.modpow(le, self);
-        let r_to_re: BigInt = r.modpow(re, self);
-        Ok((l_to_le * r_to_re) % self)
+        let l_to_le: BigInt = l
+            .modpow_ext(le, self)
+            .ok_or(BadExponent(BadExponentReason::Undefined))?;
+        let r_to_re: BigInt = r
+            .modpow_ext(re, self)
+            .ok_or(BadExponent(BadExponentReason::Undefined))?;
+        Ok((l_to_le * r_to_re).mod_floor(self))
     }
 
     fn to_scalar<C: generic_ec::Curve>(&self) -> Scalar<C> {
@@ -220,7 +224,7 @@ impl BigIntExt for BigInt {
     }
 
     fn signed_modulo(&self, n: &Self) -> Self {
-        let self_mod_n = self % n;
+        let self_mod_n = self.mod_floor(n);
         let half_n = n >> 1_u32;
         if half_n.is_odd() && self_mod_n <= half_n || self_mod_n < half_n {
             self_mod_n
@@ -322,6 +326,8 @@ pub mod test {
     use super::BigIntExt;
     use num_bigint::BigInt;
     use num_bigint::RandBigInt;
+    use num_integer::Integer;
+    use num_traits::Num;
 
     pub fn sample_key() -> fast_paillier::DecryptionKey {
         fast_paillier::DecryptionKey::sample_128()
@@ -332,8 +338,15 @@ pub mod test {
     }
 
     pub fn aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {
-        let p = generate_blum_prime(rng, 1024);
-        let q = generate_blum_prime(rng, 1024);
+        // let p = generate_blum_prime(rng, 1024);
+        // let q = generate_blum_prime(rng, 1024);
+
+        // Because generating primes is slow, we use hardcoded values
+        let p = BigInt::from_str_radix("119718298173119878105125282170952301903604788836137192672971085086931697454850578932741977173627414449815867352984108049440807338548948797578442102781940057113712352026131358062988204403634623787863403524694314770165787749649165099519120341381625516324331282224170802953909133093459522735120382898061575755427", 10).unwrap();
+        let q = BigInt::from_str_radix("90684028399912762319968138686204104120379010978734483157509623196436980870215927551569968173582391210838773744285614231471344350473494545770380636071402624403290484788376380599113518289534999987953418185019079958140799840748557330172676687793563591522131283238279656530154885714292887606570952169867532646327", 10).unwrap();
+        assert_eq!(&p % 4, BigInt::from(3));
+        assert_eq!(&q % 4, BigInt::from(3));
+
         let n = &p * &q;
 
         let (s, t) = {
@@ -341,7 +354,7 @@ pub mod test {
             let r = BigInt::gen_invertible(&n, rng);
             let lambda = rng.gen_bigint_range(&BigInt::ZERO, &phi_n);
 
-            let t = (&r * &r) % &n;
+            let t = (&r * &r).mod_floor(&n);
             let s = t.modpow(&lambda, &n);
 
             (s, t)
@@ -360,6 +373,7 @@ pub mod test {
         loop {
             let n = generate_prime(rng, bits_size);
             if &n % 4 == BigInt::from(3) {
+                println!("Generated prime: {}", n);
                 break n;
             }
         }

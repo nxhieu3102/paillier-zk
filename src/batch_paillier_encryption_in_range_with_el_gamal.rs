@@ -31,7 +31,6 @@
 //!
 //! See full example in the documentation below, where both prover and verifier perform the setup,
 //! generate commitments and proofs, and finally verify the batched zero-knowledge proof.
-
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce, Plaintext};
 use generic_ec::{Curve, Point, Scalar};
 use num_bigint::BigInt;
@@ -74,8 +73,6 @@ impl<C: Curve> PublicElement<C> {
     /// Returns a stripped version of `PublicData` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        todo!();
-
         udigest::inline_struct!("paillier_zk.public_element" {
             // ciphertext: udigest::Bytes(self.ciphertext.to_bytes(true)),
             // b: udigest::Bytes(self.b.to_bytes(true)),
@@ -102,7 +99,6 @@ impl<'a, C: Curve> PublicData<'a, C> {
     /// Returns a stripped version of `PublicData` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        todo!();
         udigest::inline_struct!("paillier_zk.public_data" {
             // key: udigest::Bytes(self.key.n().to_digits::<u8>(order)),
             // a: udigest::Bytes(self.a.to_bytes(true)),
@@ -145,7 +141,6 @@ impl<C: Curve> Commitment<C> {
     /// Returns a stripped version of `Commitment` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        todo!();
         udigest::inline_struct!("paillier_zk.commitment" {
             // s: self.s.iter().map(|e| udigest::Bytes(e.to_digits::<u8>(order))).collect::<Vec<_>>(),
             // d: udigest::Bytes(self.d.to_digits::<u8>(order)),
@@ -198,6 +193,7 @@ pub mod interactive {
         Aux, Challenge, Commitment, PrivateCommitment, PrivateData, Proof, PublicData,
         SecurityParams,
     };
+    use num_integer::Integer;
 
     /// Create random commitment
     pub fn commit<E: Curve>(
@@ -356,7 +352,7 @@ pub mod interactive {
                 }
 
                 e_at_s.iter().fold(commitment.s[0].clone(), |acc, e| {
-                    (acc * e) % &aux.rsa_modulo
+                    (acc * e).mod_floor(&aux.rsa_modulo)
                 })
             };
             // let rhs = {

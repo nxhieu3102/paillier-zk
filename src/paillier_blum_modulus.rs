@@ -195,7 +195,7 @@ pub mod interactive {
             let y = y.clone();
             let y = if point.a { &data.n - y } else { y };
             let y = if point.b {
-                (y * &commitment.w) % &data.n
+                (y * &commitment.w).mod_floor(&data.n)
             } else {
                 y
             };

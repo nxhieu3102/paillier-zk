@@ -118,16 +118,16 @@ impl MultiexpTable {
         let mut acc = BigInt::one();
         for d in digits_table.iter().rev() {
             if let Some(d) = d {
-                acc = (acc * d) % &self.N;
+                acc = (acc * d).mod_floor(&self.N);
             }
-            res = (res * &acc) % &self.N;
+            res = (res * &acc).mod_floor(&self.N);
         }
 
         if x_is_neg {
-            res = (res * &self.s_to_ell_x) % &self.N;
+            res = (res * &self.s_to_ell_x).mod_floor(&self.N);
         }
         if y_is_neg {
-            res = (res * &self.t_to_ell_y) % &self.N;
+            res = (res * &self.t_to_ell_y).mod_floor(&self.N);
         }
 
         Some(res)

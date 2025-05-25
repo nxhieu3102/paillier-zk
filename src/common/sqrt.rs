@@ -39,8 +39,8 @@ pub fn find_residue(
     q: &BigInt,
     n: &BigInt,
 ) -> Option<(bool, bool, BigInt)> {
-    let jp = (y % p).jacobi(p);
-    let jq = (y % q).jacobi(q);
+    let jp = (y.mod_floor(p)).jacobi(p);
+    let jq = (y.mod_floor(q)).jacobi(q);
 
     match (jp, jq) {
         (1, 1) => return Some((false, false, y.clone())),
@@ -48,9 +48,9 @@ pub fn find_residue(
         _ => (),
     }
 
-    let y_times_w = (y * w) % n;
-    let jp = (&y_times_w % p).jacobi(p);
-    let jq = (&y_times_w % q).jacobi(q);
+    let y_times_w = (y * w).mod_floor(n);
+    let jp = (&y_times_w.mod_floor(p)).jacobi(p);
+    let jq = (&y_times_w.mod_floor(q)).jacobi(q);
     match (jp, jq) {
         (1, 1) => Some((false, true, y_times_w)),
         (-1, -1) => Some((true, true, n - &y_times_w)),

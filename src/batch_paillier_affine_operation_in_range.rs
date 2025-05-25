@@ -44,10 +44,10 @@
 //!
 //! See full example in the documentation below, where both prover and verifier perform the setup,
 //! generate commitments and proofs, and finally verify the batched zero-knowledge proof.
-
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
 use generic_ec::{Curve, Point};
 use num_bigint::BigInt;
+use num_integer::Integer;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -84,7 +84,6 @@ impl<C: Curve> PublicElement<C> {
     /// Returns a stripped version of `PublicData` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        todo!();
         udigest::inline_struct!("paillier_zk.public_element" {
             // c: udigest::Bytes(self.c.to_digits::<u8>(order)),
             // x: udigest::Bytes(self.x.to_bytes(true)),
@@ -110,7 +109,6 @@ impl<'a, C: Curve> PublicData<'a, C> {
     /// Returns a stripped version of `PublicData` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        todo!();
         udigest::inline_struct!("paillier_zk.public_data" {
             // key0: udigest::Bytes(self.key0.n().to_digits::<u8>(order)),
             // key1: udigest::Bytes(self.key1.n().to_digits::<u8>(order)),
@@ -150,7 +148,6 @@ impl<C: Curve> Commitment<C> {
     /// Returns a stripped version of `Commitment` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        todo!();
         udigest::inline_struct!("paillier_zk.commitment" {
             // a: udigest::Bytes(self.a.to_digits::<u8>(order)),
             // s: self.s.iter().map(|s| udigest::Bytes(s.to_digits::<u8>(order))).collect::<Vec<_>>(),
@@ -389,6 +386,9 @@ pub mod interactive {
                 },
             );
 
+            println!("lhs: {lhs:?}");
+            println!("rhs: {rhs:?}");
+
             fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
         }
 
@@ -428,7 +428,7 @@ pub mod interactive {
                         .clone()
                         .modpow_ext(&challenge_i, &aux.rsa_modulo)
                         .unwrap())
-                        % &aux.rsa_modulo
+                    .mod_floor(&aux.rsa_modulo)
                 })
                 .collect();
 
@@ -463,7 +463,7 @@ pub mod interactive {
                         .clone()
                         .modpow_ext(&challenge_i, &aux.rsa_modulo)
                         .unwrap())
-                        % &aux.rsa_modulo
+                    .mod_floor(&aux.rsa_modulo)
                 },
             );
 
@@ -586,7 +586,7 @@ mod test {
     use num_bigint::BigInt;
     use sha2::Digest;
 
-    use crate::common::test::{sample_key, sample_other_key};
+    use crate::common::test::{generate_blum_prime, sample_key, sample_other_key};
     use crate::common::{BigIntExt, InvalidProofReason};
 
     fn run<R: rand_core::RngCore + rand_core::CryptoRng, C: Curve, D: Digest>(
@@ -711,7 +711,7 @@ mod test {
             t: 128,
         };
         let x = BigInt::from_rng_pm(&(BigInt::from(1) << security.l_x), &mut rng);
-        let y = (BigInt::from(1) << (security.l_y + security.epsilon + 3)) + 1;
+        let y = (BigInt::from(1) << (security.l_y + security.epsilon + 5)) + 1;
         let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
             InvalidProofReason::RangeCheck(7) => (),
@@ -728,7 +728,7 @@ mod test {
             q: (BigInt::from(1) << 128_u32),
             t: 128,
         };
-        let x: BigInt = (BigInt::from(1) << (security.l_x + security.epsilon + 3)) + 1;
+        let x: BigInt = (BigInt::from(1) << (security.l_x + security.epsilon + 5)) + 1;
         let y = BigInt::from_rng_pm(&(BigInt::from(1) << security.l_y), &mut rng);
         let r = run::<_, C, D>(&mut rng, security, x, y).expect_err("proof should not pass");
         match r.reason() {
