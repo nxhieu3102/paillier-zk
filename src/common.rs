@@ -323,14 +323,6 @@ pub mod test {
     use num_bigint::BigInt;
     use num_bigint::RandBigInt;
 
-    pub fn random_key<R: rand_core::RngCore + rand_core::CryptoRng>(
-        rng: &mut R,
-    ) -> Option<fast_paillier::DecryptionKey> {
-        let n_size = 3072;
-        let a_size = 512;
-        fast_paillier::DecryptionKey::generate(rng, n_size, a_size).ok()
-    }
-
     pub fn sample_key() -> fast_paillier::DecryptionKey {
         fast_paillier::DecryptionKey::sample_128()
     }
@@ -368,7 +360,6 @@ pub mod test {
         loop {
             let n = generate_prime(rng, bits_size);
             if &n % 4 == BigInt::from(3) {
-                assert_eq!(n.clone() % 4, BigInt::from(3));
                 break n;
             }
         }

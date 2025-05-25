@@ -120,7 +120,7 @@ pub struct Proof<const M: usize> {
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
 pub mod interactive {
-    use crate::common::sqrt::{blum_sqrt, find_residue, sample_neg_jacobi, BigIntJacobi};
+    use crate::common::sqrt::{blum_sqrt, find_residue, sample_neg_jacobi};
     use crate::{BadExponent, Error, ErrorReason, InvalidProof, InvalidProofReason};
     use fast_paillier::common::BigIntExt;
     use fast_paillier::utils::is_prime;
@@ -284,8 +284,9 @@ pub mod non_interactive {
 #[cfg(test)]
 mod test {
     use num_bigint::BigInt;
+    use num_traits::Num;
 
-    use crate::common::test::{generate_blum_prime, generate_prime};
+    use crate::common::test::generate_blum_prime;
 
     type D = sha2::Sha256;
 
@@ -311,20 +312,26 @@ mod test {
     fn failing() {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 256);
-        let q = loop {
-            // non blum prime
-            let q = generate_prime(&mut rng, 256);
-            if &q % 4 == BigInt::from(1u8) {
-                break q;
-            }
-        };
+
+        // Currently we use a fixed q to test the failure case
+        // Because the generate prime function always generates a blum prime
+        // In the future, we can generate it randomly as well
+        let q = BigInt::from_str_radix(
+            "83068444371047794141187595475503751543138564039474151978032204006692380162693",
+            10,
+        )
+        .unwrap();
+        assert_ne!(&q % 4, BigInt::from(3u8));
+
         let n = &p * &q;
         let data = super::Data { n };
         let pdata = super::PrivateData { p, q };
         let shared_state = "shared state";
+
         let (commitment, proof) =
             super::non_interactive::prove::<65, D>(&shared_state, &data, &pdata, &mut rng).unwrap();
         let r = super::non_interactive::verify::<65, D>(&shared_state, &data, &commitment, &proof);
+
         if r.is_ok() {
             panic!("proof should not pass");
         }
