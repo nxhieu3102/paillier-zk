@@ -81,10 +81,12 @@
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-    
-use num_bigint::BigInt;
-use fast_paillier::utils::serializable_bigint;
+
 pub use crate::common::{Aux, InvalidProof};
+use num_bigint::BigInt;
+
+#[cfg(feature = "serde")]
+use fast_paillier::utils::serializable_bigint;
 
 /// Security parameters for proof. Choosing the values is a tradeoff between
 /// speed and chance of rejecting a valid proof or accepting an invalid proof
@@ -188,8 +190,8 @@ pub struct Proof {
 
 /// Interactive version of the proof
 pub mod interactive {
-    use rand_core::RngCore;
     use num_bigint::BigInt;
+    use rand_core::RngCore;
 
     use crate::{
         common::{fail_if, fail_if_ne, BigIntExt, InvalidProofReason},
@@ -265,7 +267,7 @@ pub mod interactive {
         pcomm: &PrivateCommitment,
         challenge: &Challenge,
     ) -> Result<Proof, Error> {
-        let sigma_circ = (&comm.sigma - &pcomm.nu * pdata.p);
+        let sigma_circ = &comm.sigma - &pcomm.nu * pdata.p;
 
         Ok(Proof {
             z1: (&pcomm.alpha + challenge * pdata.p),
@@ -409,7 +411,7 @@ mod test {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 256);
         let q = generate_blum_prime(&mut rng, 256);
-        let n = (&p * &q);
+        let n = &p * &q;
         let n_root = n.sqrt();
         let data = super::Data {
             n: &n,
@@ -445,7 +447,7 @@ mod test {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 128);
         let q = generate_blum_prime(&mut rng, 384);
-        let n = (&p * &q);
+        let n = &p * &q;
         let n_root = n.sqrt();
         let data = super::Data {
             n: &n,

@@ -10,7 +10,6 @@ use num_integer::Integer;
 use num_traits::{One, Pow, Zero};
 
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 use fast_paillier::utils::{serializable_bigint, serializable_vec_bigint};
 
 /// Precomputed table for performing faster multiexponentiation

@@ -107,8 +107,9 @@ macro_rules! log {
 }
 
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 use fast_paillier::utils::serializable_bigint;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 pub use crate::common::Aux;
 pub use crate::common::InvalidProof;
@@ -178,7 +179,6 @@ pub struct PrivateCommitment {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = BigInt;
 
-
 // As described in cggmp21 at page 33
 /// The ZK proof. Computed by [`interactive::prove`] or
 /// [`non_interactive::prove`]
@@ -196,8 +196,11 @@ pub struct Proof {
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
-/// 
+///
 pub mod interactive {
+    use super::{
+        Aux, Challenge, Commitment, Data, PrivateCommitment, PrivateData, Proof, SecurityParams,
+    };
     use crate::common::{BigIntExt, InvalidProof};
     use crate::{
         common::{fail_if, fail_if_ne, InvalidProofReason},
@@ -206,11 +209,8 @@ pub mod interactive {
     use num_bigint::BigInt;
     use num_integer::Integer;
     use num_traits::One;
-    use rand_core::RngCore;
     use num_traits::Signed;
-    use super::{
-        Aux, Challenge, Commitment, Data, PrivateCommitment, PrivateData, Proof, SecurityParams,
-    };
+    use rand_core::RngCore;
 
     /// Create random commitment
     pub fn commit<R: RngCore>(
@@ -221,7 +221,7 @@ pub mod interactive {
         rng: &mut R,
     ) -> Result<(Commitment, PrivateCommitment), Error> {
         log!("🧮 commit");
-        let two_to_l_plus_e = (BigInt::from(1) << (security.l + security.epsilon));
+        let two_to_l_plus_e = BigInt::from(1) << (security.l + security.epsilon);
         log!("🧮 two_to_l_plus_e: {}", two_to_l_plus_e);
         let hat_n_at_two_to_l = (BigInt::from(1) << security.l) * &aux.rsa_modulo;
         log!("🧮 hat_n_at_two_to_l: {}", hat_n_at_two_to_l);

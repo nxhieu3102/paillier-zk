@@ -36,8 +36,9 @@ use generic_ec::{Curve, Point, Scalar};
 use num_bigint::BigInt;
 
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
 use fast_paillier::utils::{serializable_bigint, serializable_vec_bigint};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 
 pub use crate::common::Aux;
 pub use crate::common::InvalidProof;
@@ -168,8 +169,6 @@ pub struct PrivateCommitment<E: Curve> {
 /// Verifier's challenge to prover. Can be obtained deterministically by
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = Vec<BigInt>;
-
-
 
 /// Range Proof with El-Gamal commitment
 #[derive(Debug, Clone)]

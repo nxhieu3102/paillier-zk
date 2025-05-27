@@ -44,15 +44,16 @@
 //!
 //! See full example in the documentation below, where both prover and verifier perform the setup,
 //! generate commitments and proofs, and finally verify the batched zero-knowledge proof.
+pub use crate::common::{Aux, InvalidProof};
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
 use generic_ec::{Curve, Point};
 use num_bigint::BigInt;
 use num_integer::Integer;
+
+#[cfg(feature = "serde")]
+use fast_paillier::utils::{serializable_bigint, serializable_vec_bigint};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use fast_paillier::utils::{serializable_bigint, serializable_vec_bigint};
-
-pub use crate::common::{Aux, InvalidProof};
 
 /// Security parameters for proof. Choosing the values is a tradeoff between
 /// speed and chance of rejecting a valid proof or accepting an invalid proof
