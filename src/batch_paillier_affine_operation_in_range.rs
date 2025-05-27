@@ -111,7 +111,7 @@ pub struct PublicData<'a, C: Curve> {
     pub batch: Vec<PublicElement<C>>,
 }
 
-impl<'a, C: Curve> PublicData<'a, C> {
+impl<C: Curve> PublicData<'_, C> {
     /// Returns a stripped version of `PublicData` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
@@ -255,7 +255,7 @@ pub mod interactive {
             .iter()
             .zip(alpha.iter())
             .fold(beta_enc_key0, |acc, (element, a)| {
-                let c_at_a = data.key0.omul(&a, &element.c).unwrap();
+                let c_at_a = data.key0.omul(a, &element.c).unwrap();
                 data.key0.oadd(&acc, &c_at_a).unwrap()
             });
 
@@ -263,13 +263,13 @@ pub mod interactive {
             .batch
             .iter()
             .zip(m.iter())
-            .map(|(element, m_i)| aux.combine(&element.x, &m_i).unwrap())
+            .map(|(element, m_i)| aux.combine(element.x, m_i).unwrap())
             .collect();
 
         let e = alpha
             .iter()
             .zip(gamma.iter())
-            .map(|(alpha_i, gamma_i)| aux.combine(&alpha_i, &gamma_i).unwrap())
+            .map(|(alpha_i, gamma_i)| aux.combine(alpha_i, gamma_i).unwrap())
             .collect();
 
         let f = aux.combine(&beta, &delta).unwrap();
@@ -278,7 +278,7 @@ pub mod interactive {
             .batch
             .iter()
             .zip(mu.iter())
-            .map(|(element, mu_i)| aux.combine(&element.y, &mu_i).unwrap())
+            .map(|(element, mu_i)| aux.combine(element.y, mu_i).unwrap())
             .collect();
 
         let b_x = alpha
@@ -390,14 +390,14 @@ pub mod interactive {
             let lhs = proof.z1.iter().zip(data.batch.iter()).fold(
                 data.key0.encrypt_with(&proof.z2, &proof.w).unwrap(),
                 |acc, (z1_i, element)| {
-                    let z1_i_at_c = data.key0.omul(&z1_i, &element.c).unwrap();
+                    let z1_i_at_c = data.key0.omul(z1_i, &element.c).unwrap();
                     data.key0.oadd(&acc, &z1_i_at_c).unwrap()
                 },
             );
             let rhs = data.batch.iter().zip(challenge.iter()).fold(
                 commitment.a.clone(),
                 |acc, (element, challenge_i)| {
-                    let e_at_d = data.key0.omul(&challenge_i, &element.d).unwrap();
+                    let e_at_d = data.key0.omul(challenge_i, &element.d).unwrap();
                     data.key0.oadd(&acc, &e_at_d).unwrap()
                 },
             );
@@ -432,7 +432,7 @@ pub mod interactive {
                 .z1
                 .iter()
                 .zip(proof.z3.iter())
-                .map(|(z1_i, z3_i)| aux.combine(&z1_i, &z3_i).unwrap())
+                .map(|(z1_i, z3_i)| aux.combine(z1_i, z3_i).unwrap())
                 .collect();
             let rhs: Vec<BigInt> = commitment
                 .s
@@ -442,7 +442,7 @@ pub mod interactive {
                 .map(|((s_i, e_i), challenge_i)| {
                     (e_i * s_i
                         .clone()
-                        .modpow_ext(&challenge_i, &aux.rsa_modulo)
+                        .modpow_ext(challenge_i, &aux.rsa_modulo)
                         .unwrap())
                     .mod_floor(&aux.rsa_modulo)
                 })
@@ -462,7 +462,7 @@ pub mod interactive {
             let rhs = data.batch.iter().zip(challenge.iter()).fold(
                 commitment.b_y.clone(),
                 |acc, (element, challenge_i)| {
-                    let e_at_y = data.key1.omul(&challenge_i, &element.y).unwrap();
+                    let e_at_y = data.key1.omul(challenge_i, &element.y).unwrap();
                     data.key1.oadd(&acc, &e_at_y).unwrap()
                 },
             );
@@ -477,7 +477,7 @@ pub mod interactive {
                 |acc, (t_i, challenge_i)| {
                     (acc * t_i
                         .clone()
-                        .modpow_ext(&challenge_i, &aux.rsa_modulo)
+                        .modpow_ext(challenge_i, &aux.rsa_modulo)
                         .unwrap())
                     .mod_floor(&aux.rsa_modulo)
                 },

@@ -1,10 +1,10 @@
-use wasm_bindgen::prelude::*;
-use num_bigint::BigInt;
 use crate::common::BigIntExt;
+use num_bigint::BigInt;
+use wasm_bindgen::prelude::*;
 
 // Import web-sys for direct console access
-use web_sys::console;
 use log;
+use web_sys::console;
 
 // Macro for easy logging to browser console
 #[macro_export]
@@ -32,13 +32,18 @@ pub fn wasm_test() -> String {
 #[wasm_bindgen]
 pub fn test_bigint_operations() -> String {
     log!("🔢 Starting BigInt operations test");
-    
+
     let a = BigInt::from(12345);
     let b = BigInt::from(54321);
     let c = a + b;
-    
-    log!("✅ BigInt calculation completed: {} + {} = {}", 12345, 54321, c);
-    
+
+    log!(
+        "✅ BigInt calculation completed: {} + {} = {}",
+        12345,
+        54321,
+        c
+    );
+
     format!("BigInt operations: 12345 + 54321 = {}", c)
 }
 
@@ -46,16 +51,12 @@ pub fn test_bigint_operations() -> String {
 #[wasm_bindgen]
 pub fn test_basic_crypto() -> String {
     log!("🔐 Starting basic crypto test");
-    
-    use rand::thread_rng;
-    
-    let mut rng = thread_rng();
-    
+
     // Generate a random number
     let random_number = rand::random::<u32>();
-    
+
     log!("🎲 Generated random number: {}", random_number);
-    
+
     format!("Basic crypto: Generated random number: {}", random_number)
 }
 
@@ -63,22 +64,26 @@ pub fn test_basic_crypto() -> String {
 #[wasm_bindgen]
 pub fn test_paillier_encryption_in_range() -> String {
     log!("🔒 Starting Paillier encryption in range proof test");
-    
+
     use crate::paillier_encryption_in_range as zk;
-    use sha2::Sha256;
     use rand::thread_rng;
-    
+    use sha2::Sha256;
+
     let mut rng = thread_rng();
-    
+
     // Set up security parameters (smaller values for WASM performance)
     let security = zk::SecurityParams {
-        l: 128,  // Smaller bit size for faster computation in browser
+        l: 128, // Smaller bit size for faster computation in browser
         epsilon: 64,
         q: (BigInt::from(1) << 64) - 1,
     };
-    
-    log!("⚙️ Security parameters set: l={}, epsilon={}", security.l, security.epsilon);
-    
+
+    log!(
+        "⚙️ Security parameters set: l={}, epsilon={}",
+        security.l,
+        security.epsilon
+    );
+
     // Create auxiliary data for the proof
     log!("🔧 Creating auxiliary data...");
     let aux = crate::common::test::aux(&mut rng);
@@ -87,31 +92,31 @@ pub fn test_paillier_encryption_in_range() -> String {
     log!("📊 Generating test plaintext...");
     let plaintext = BigInt::from_rng_pm(&(BigInt::from(1) << security.l), &mut rng);
     log!("📊 Plaintext generated with {} bits", plaintext.bits());
-    
+
     // Sample encryption key (using smaller key for WASM)
     log!("🔑 Generating encryption keys...");
     let private_key = crate::common::test::random_key(&mut rng).unwrap();
     log!("🔑 Decryption key generated: {:?}", private_key);
     let key = private_key.encryption_key();
     log!("🔑 Encryption key: {:?}", key);
-    
+
     // Encrypt the plaintext
     log!("🔐 Encrypting plaintext...");
     match key.encrypt_with_random(&mut rng, &plaintext) {
         Ok((ciphertext, nonce)) => {
             log!("✅ Encryption successful");
-            
+
             // Create data structures for the proof
             let pdata = zk::PrivateData {
                 plaintext: &plaintext,
                 nonce: &nonce,
             };
-            
+
             let data = zk::Data {
                 key,
                 ciphertext: &ciphertext,
             };
-            
+
             // Generate the proof
             log!("🧮 Generating zero-knowledge proof...");
             match zk::non_interactive::prove::<Sha256>(
@@ -124,7 +129,7 @@ pub fn test_paillier_encryption_in_range() -> String {
             ) {
                 Ok((commitment, proof)) => {
                     log!("✅ Proof generation successful");
-                    
+
                     // Verify the proof
                     log!("🔍 Verifying proof...");
                     match zk::non_interactive::verify::<Sha256>(
@@ -142,20 +147,19 @@ pub fn test_paillier_encryption_in_range() -> String {
                                 security.l,
                                 format!("{}", plaintext).chars().take(20).collect::<String>()
                             )
-                        },
+                        }
                         Err(e) => {
                             log!("❌ Proof verification failed: {:?}", e);
                             format!("❌ Proof verification failed: {:?}", e)
                         }
                     }
-                },
+                }
                 Err(e) => {
                     log!("❌ Failed to create proof: {:?}", e);
                     format!("❌ Failed to create proof: {:?}", e)
                 }
             }
-            
-        },
+        }
         Err(e) => {
             log!("❌ Failed to encrypt plaintext: {:?}", e);
             format!("❌ Failed to encrypt plaintext: {:?}", e)
@@ -197,6 +201,6 @@ pub fn test_logging_levels() -> String {
     log_error("This is an error message");
     log_debug("This is a debug message");
     log!("This is a regular log message");
-    
+
     "Check the browser console to see different log levels!".to_string()
-} 
+}

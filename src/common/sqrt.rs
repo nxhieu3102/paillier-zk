@@ -49,8 +49,8 @@ pub fn find_residue(
     }
 
     let y_times_w = (y * w).mod_floor(n);
-    let jp = (&y_times_w.mod_floor(p)).jacobi(p);
-    let jq = (&y_times_w.mod_floor(q)).jacobi(q);
+    let jp = (y_times_w.mod_floor(p)).jacobi(p);
+    let jq = (y_times_w.mod_floor(q)).jacobi(q);
     match (jp, jq) {
         (1, 1) => Some((false, true, y_times_w)),
         (-1, -1) => Some((true, true, n - &y_times_w)),

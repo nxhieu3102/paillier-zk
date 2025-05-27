@@ -99,7 +99,7 @@ pub struct PublicData<'a, C: Curve> {
     pub a: &'a Point<C>,
 }
 
-impl<'a, C: Curve> PublicData<'a, C> {
+impl<C: Curve> PublicData<'_, C> {
     /// Returns a stripped version of `PublicData` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
@@ -327,11 +327,11 @@ pub mod interactive {
             let rhs = {
                 let mut e_at_x = vec![];
                 for (e, elem) in challenge.iter().zip(data.batch.iter()) {
-                    let result = e.to_scalar() * &elem.x;
+                    let result = e.to_scalar() * elem.x;
                     e_at_x.push(result);
                 }
 
-                e_at_x.iter().fold(commitment.y.clone(), |acc, e| acc + e)
+                e_at_x.iter().fold(commitment.y, |acc, e| acc + e)
             };
 
             // let rhs = commitment.y + data.x * challenge.to_scalar();
@@ -342,11 +342,11 @@ pub mod interactive {
             let rhs = {
                 let mut e_at_b = vec![];
                 for (e, elem) in challenge.iter().zip(data.batch.iter()) {
-                    let result = e.to_scalar() * &elem.b;
+                    let result = e.to_scalar() * elem.b;
                     e_at_b.push(result);
                 }
 
-                e_at_b.iter().fold(commitment.z.clone(), |acc, e| acc + e)
+                e_at_b.iter().fold(commitment.z, |acc, e| acc + e)
             };
 
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;

@@ -153,7 +153,7 @@ pub mod interactive {
     ) -> Result<Proof<M>, Error> {
         let blum_sqrt = |x| blum_sqrt(&x, p, q, n);
         let phi = (p - 1u8) * (q - 1u8);
-        let n_inverse = n.modinv(&phi).ok_or(ErrorReason::Invert)?.into();
+        let n_inverse = n.modinv(&phi).ok_or(ErrorReason::Invert)?;
 
         // We do an extra allocation as workaround while `array::try_map` is not stable
         let points = challenge
@@ -162,8 +162,7 @@ pub mod interactive {
             .map(|y| {
                 let z = y
                     .modpow_ext(&n_inverse, n)
-                    .ok_or(BadExponent::undefined())?
-                    .into();
+                    .ok_or(BadExponent::undefined())?;
                 let (a, b, y_) = find_residue(y, w, p, q, n).ok_or(ErrorReason::FindResidue)?;
                 let x = blum_sqrt(blum_sqrt(y_));
                 Ok(ProofPoint { x, a, b, z })
@@ -189,12 +188,11 @@ pub mod interactive {
             return Err(InvalidProofReason::ModulusIsEven.into());
         }
         for (point, y) in proof.points.iter().zip(challenge.ys.iter()) {
-            if BigInt::from(
-                point
-                    .z
-                    .modpow_ext(&data.n, &data.n)
-                    .ok_or(InvalidProofReason::ModPow)?,
-            ) != *y
+            if point
+                .z
+                .modpow_ext(&data.n, &data.n)
+                .ok_or(InvalidProofReason::ModPow)?
+                != *y
             {
                 return Err(InvalidProofReason::IncorrectNthRoot.into());
             }
@@ -205,12 +203,11 @@ pub mod interactive {
             } else {
                 y
             };
-            if BigInt::from(
-                point
-                    .x
-                    .modpow_ext(&4.into(), &data.n)
-                    .ok_or(InvalidProofReason::ModPow)?,
-            ) != y
+            if point
+                .x
+                .modpow_ext(&4.into(), &data.n)
+                .ok_or(InvalidProofReason::ModPow)?
+                != y
             {
                 return Err(InvalidProofReason::IncorrectFourthRoot.into());
             }

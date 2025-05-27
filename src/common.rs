@@ -5,7 +5,7 @@ use num_integer::Integer; // This brings the Integer trait (and mod_floor) into 
 use std::sync::Arc;
 
 #[cfg(feature = "serde")]
-use fast_paillier::utils::{serializable_bigint};
+use fast_paillier::utils::serializable_bigint;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -68,8 +68,7 @@ impl Aux {
             }
             None => Ok(x
                 .modpow_ext(e, &self.rsa_modulo)
-                .ok_or_else(BadExponent::undefined)?
-                .into()),
+                .ok_or_else(BadExponent::undefined)?),
         }
     }
 
@@ -232,8 +231,7 @@ impl BigIntExt for BigInt {
             let u_range = range.clone();
             rng.gen_bigint_range(&l_range, &u_range)
         }
-        
-        
+
         // rng.gen_bigint_range(&l_range, &u_range)
     }
 
@@ -354,7 +352,9 @@ pub mod test {
         fast_paillier::DecryptionKey::sample_other_128()
     }
 
-    pub fn random_key(rng: &mut (impl rand_core::RngCore + rand_core::CryptoRng)) -> Result<fast_paillier::DecryptionKey, fast_paillier::Error> {
+    pub fn random_key(
+        rng: &mut (impl rand_core::RngCore + rand_core::CryptoRng),
+    ) -> Result<fast_paillier::DecryptionKey, fast_paillier::Error> {
         fast_paillier::DecryptionKey::generate(rng, 2048, 448)
     }
 
