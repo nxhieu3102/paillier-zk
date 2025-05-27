@@ -22,8 +22,6 @@ pub struct MultiexpTable {
     N: BigInt,
 }
 
-use num_traits::FromPrimitive;
-
 impl MultiexpTable {
     /// Builds a multiexponentiation table to perform `s^x t^y mod N` faster
     /// where `x` and `y` are up to `x_bits` and `y_bits`
