@@ -81,9 +81,9 @@
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
+    
 use num_bigint::BigInt;
-
+use fast_paillier::utils::serializable_bigint;
 pub use crate::common::{Aux, InvalidProof};
 
 /// Security parameters for proof. Choosing the values is a tradeoff between
@@ -99,6 +99,7 @@ pub struct SecurityParams {
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub q: BigInt,
 }
 
@@ -125,12 +126,19 @@ pub struct PrivateData<'a> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PrivateCommitment {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub alpha: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub beta: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub mu: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub nu: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub r: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub x: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub y: BigInt,
 }
 
@@ -139,16 +147,22 @@ pub struct PrivateCommitment {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub p: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub q: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub a: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub b: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub t: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub sigma: BigInt,
 }
 
@@ -160,10 +174,15 @@ pub type Challenge = BigInt;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z1: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub w1: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub w2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub v: BigInt,
 }
 

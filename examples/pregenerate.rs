@@ -13,9 +13,8 @@
 //! The generated keys will be saved in the `test-data` directory.
 
 use anyhow::{Context, Result};
-use num_bigint::{BigInt, RandBigInt};
-
 use paillier_zk::BigIntExt;
+use num_bigint::BigInt;
 
 fn main() -> Result<()> {
     let mut rng = rand_core::OsRng;

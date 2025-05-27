@@ -88,17 +88,27 @@
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
 use num_bigint::BigInt;
-use web_sys;
-use log;
 
+#[cfg(target_arch = "wasm32")]
+use web_sys;
+
+#[cfg(target_arch = "wasm32")]
 macro_rules! log {
     ( $( $t:tt )* ) => {
         web_sys::console::log_1(&format!( $( $t )* ).into());
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        println!( $( $t )* );
+    }
+}
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use fast_paillier::utils::serializable_bigint;
 
 pub use crate::common::Aux;
 pub use crate::common::InvalidProof;
@@ -114,6 +124,7 @@ pub struct SecurityParams {
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub q: BigInt,
 }
 
@@ -143,10 +154,13 @@ pub struct PrivateData<'a> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub s: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub a: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub c: BigInt,
 }
 
@@ -164,14 +178,18 @@ pub struct PrivateCommitment {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = BigInt;
 
+
 // As described in cggmp21 at page 33
 /// The ZK proof. Computed by [`interactive::prove`] or
 /// [`non_interactive::prove`]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z1: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z3: BigInt,
 }
 

@@ -66,6 +66,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Data {
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub n: BigInt,
 }
 
@@ -81,6 +82,7 @@ pub struct PrivateData {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub w: BigInt,
 }
 
@@ -93,13 +95,17 @@ pub struct Challenge<const M: usize> {
     pub ys: [BigInt; M],
 }
 
+#[cfg(feature = "serde")]
+use fast_paillier::utils::serializable_bigint;
 /// A part of proof. Having enough of those guarantees security
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProofPoint {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub x: BigInt,
     pub a: bool,
     pub b: bool,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z: BigInt,
 }
 

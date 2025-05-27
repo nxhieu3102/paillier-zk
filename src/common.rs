@@ -4,25 +4,35 @@ use num_bigint::{BigInt, RandBigInt, Sign};
 use num_integer::Integer; // This brings the Integer trait (and mod_floor) into scope
 use std::sync::Arc;
 
+#[cfg(feature = "serde")]
+use fast_paillier::utils::{serializable_bigint};
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Auxiliary data known to both prover and verifier
+// #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(
-    feature = "__internal_doctest",
-    derive(serde::Serialize, serde::Deserialize)
+    any(feature = "serde", feature = "__internal_doctest"),
+    derive(Serialize, Deserialize)
 )]
 #[derive(Clone, Debug)]
 pub struct Aux {
     /// ring-pedersen parameter
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub s: BigInt,
     /// ring-pedersen parameter
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub t: BigInt,
     /// N^ in paper
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub rsa_modulo: BigInt,
     /// Precomuted table for computing `s^x t^y mod rsa_modulo` faster
     ///
     /// If absent, optimization is disabled.
-    #[cfg_attr(feature = "__internal_doctest", serde(skip))]
+    #[cfg_attr(any(feature = "serde", feature = "__internal_doctest"), serde(skip))]
     pub multiexp: Option<Arc<crate::multiexp::MultiexpTable>>,
-    #[cfg_attr(feature = "__internal_doctest", serde(skip))]
+    #[cfg_attr(any(feature = "serde", feature = "__internal_doctest"), serde(skip))]
     pub crt: Option<fast_paillier::utils::CrtExp>,
 }
 
@@ -316,7 +326,6 @@ pub mod encoding {
             encoder.encode_leaf_value(digits)
         }
     }
-
     /// Digests any encryption key
     pub struct AnyEncryptionKey;
     impl udigest::DigestAs<&dyn fast_paillier::AnyEncryptionKey> for AnyEncryptionKey {
@@ -343,6 +352,10 @@ pub mod test {
 
     pub fn sample_other_key() -> fast_paillier::DecryptionKey {
         fast_paillier::DecryptionKey::sample_other_128()
+    }
+
+    pub fn random_key(rng: &mut (impl rand_core::RngCore + rand_core::CryptoRng)) -> Result<fast_paillier::DecryptionKey, fast_paillier::Error> {
+        fast_paillier::DecryptionKey::generate(rng, 2048, 448)
     }
 
     pub fn sample_aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {

@@ -50,6 +50,7 @@ use num_bigint::BigInt;
 use num_integer::Integer;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use fast_paillier::utils::{serializable_bigint, serializable_vec_bigint};
 
 pub use crate::common::{Aux, InvalidProof};
 
@@ -66,6 +67,7 @@ pub struct SecurityParams {
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub q: BigInt,
     /// size of challenge
     pub t: usize,
@@ -74,9 +76,12 @@ pub struct SecurityParams {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct PublicElement<C: Curve> {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub c: Ciphertext,
     pub x: Point<C>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub d: Ciphertext,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub y: Ciphertext,
 }
 
@@ -135,12 +140,18 @@ pub struct PrivateData<'a> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Commitment<C: Curve> {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub a: Ciphertext,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub s: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub e: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub f: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub t: Vec<BigInt>,
     pub b_x: Vec<Point<C>>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub b_y: BigInt,
 }
 
@@ -183,11 +194,17 @@ pub type Challenge = Vec<BigInt>;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub z1: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub z3: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z4: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub w: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub w_y: BigInt,
 }
 
