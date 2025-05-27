@@ -202,7 +202,6 @@ pub mod interactive {
     use super::*;
     use crate::common::{fail_if, fail_if_ne, BigIntExt, InvalidProof, InvalidProofReason};
     use crate::Error;
-    use num_bigint::RandBigInt;
 
     /// Create random commitment
     pub fn commit<C: Curve, R: RngCore>(
@@ -213,7 +212,6 @@ pub mod interactive {
         batch_size: usize,
         mut rng: R,
     ) -> Result<(Commitment<C>, PrivateCommitment), Error> {
-        let mut rng = rand::thread_rng();
         let two_to_l = BigInt::from(1) << security.l_x;
         let two_to_l_y = BigInt::from(1) << security.l_y;
         let two_to_l_e_t = BigInt::from(1) << (security.l_x + security.epsilon + security.t);
@@ -586,7 +584,7 @@ mod test {
     use num_bigint::BigInt;
     use sha2::Digest;
 
-    use crate::common::test::{generate_blum_prime, sample_key, sample_other_key};
+    use crate::common::test::{sample_key, sample_other_key};
     use crate::common::{BigIntExt, InvalidProofReason};
 
     fn run<R: rand_core::RngCore + rand_core::CryptoRng, C: Curve, D: Digest>(
