@@ -213,9 +213,18 @@ impl BigIntExt for BigInt {
 
     fn from_rng_pm<R: rand::RngCore>(range: &Self, rng: &mut R) -> Self {
         // let mut rng = fast_paillier::utils::external_rand(rng);
-        let l_range = -range.clone();
-        let u_range = range.clone();
-        rng.gen_bigint_range(&l_range, &u_range)
+        if range.is_negative() {
+            let l_range = range.clone();
+            let u_range = -range.clone();
+            rng.gen_bigint_range(&l_range, &u_range)
+        } else {
+            let l_range = -range.clone();
+            let u_range = range.clone();
+            rng.gen_bigint_range(&l_range, &u_range)
+        }
+        
+        
+        // rng.gen_bigint_range(&l_range, &u_range)
     }
 
     fn is_in_pm(&self, range: &Self) -> bool {
@@ -321,7 +330,6 @@ pub mod encoding {
 }
 
 /// A common logic shared across tests and doctests
-#[cfg(test)]
 pub mod test {
     use super::BigIntExt;
     use num_bigint::BigInt;
@@ -335,6 +343,32 @@ pub mod test {
 
     pub fn sample_other_key() -> fast_paillier::DecryptionKey {
         fast_paillier::DecryptionKey::sample_other_128()
+    }
+
+    pub fn sample_aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {
+        let dk = fast_paillier::DecryptionKey::sample_128();
+        let p = dk.p();
+        let q = dk.q();
+        let n = p * q;
+
+        let (s, t) = {
+            let phi_n = (p.clone() - 1u8) * (q.clone() - 1u8);
+            let r = BigInt::gen_invertible(&n, rng);
+            let lambda = rng.gen_bigint_range(&BigInt::ZERO, &phi_n);
+
+            let t = (&r * &r) % &n;
+            let s = t.modpow(&lambda, &n);
+
+            (s, t)
+        };
+
+        super::Aux {
+            s,
+            t,
+            rsa_modulo: n,
+            multiexp: None,
+            crt: None,
+        }
     }
 
     pub fn aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {

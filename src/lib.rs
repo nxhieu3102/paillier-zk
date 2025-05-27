@@ -18,10 +18,11 @@ pub mod paillier_encryption_in_range;
 
 // DO NOT USE IN CGGMP21 VERSION 2024
 // pub mod group_element_vs_paillier_encryption_in_range;
-// pub mod no_small_factor;
+pub mod no_small_factor;
 // pub mod paillier_affine_operation_in_range;
 // pub mod paillier_encryption_in_range_with_el_gamal;
 
+// Make curve module test-only again
 #[cfg(test)]
 mod curve;
 
@@ -30,6 +31,9 @@ compile_error!("doctest require that `__internal_doctest` feature is turned on")
 
 #[cfg(feature = "__internal_doctest")]
 pub mod _doctest;
+
+// WASM bindings
+pub mod wasm;
 
 use common::InvalidProofReason;
 pub use common::{BadExponent, BigIntExt, InvalidProof, PaillierError};

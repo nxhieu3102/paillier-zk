@@ -88,6 +88,14 @@
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
 use num_bigint::BigInt;
+use web_sys;
+use log;
+
+macro_rules! log {
+    ( $( $t:tt )* ) => {
+        web_sys::console::log_1(&format!( $( $t )* ).into());
+    }
+}
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -170,6 +178,7 @@ pub struct Proof {
 /// The interactive version of the ZK proof. Should be completed in 3 rounds:
 /// prover commits to data, verifier responds with a random challenge, and
 /// prover gives proof with commitment and challenge.
+/// 
 pub mod interactive {
     use crate::common::{BigIntExt, InvalidProof};
     use crate::{
@@ -180,7 +189,7 @@ pub mod interactive {
     use num_integer::Integer;
     use num_traits::One;
     use rand_core::RngCore;
-
+    use num_traits::Signed;
     use super::{
         Aux, Challenge, Commitment, Data, PrivateCommitment, PrivateData, Proof, SecurityParams,
     };
@@ -193,20 +202,39 @@ pub mod interactive {
         security: &SecurityParams,
         rng: &mut R,
     ) -> Result<(Commitment, PrivateCommitment), Error> {
-        let two_to_l_plus_e = BigInt::from(1) << (security.l + security.epsilon);
+        log!("🧮 commit");
+        let two_to_l_plus_e = (BigInt::from(1) << (security.l + security.epsilon));
+        log!("🧮 two_to_l_plus_e: {}", two_to_l_plus_e);
         let hat_n_at_two_to_l = (BigInt::from(1) << security.l) * &aux.rsa_modulo;
+        log!("🧮 hat_n_at_two_to_l: {}", hat_n_at_two_to_l);
         let hat_n_at_two_to_l_plus_e =
             (BigInt::from(1) << (security.l + security.epsilon)) * &aux.rsa_modulo;
-
-        let alpha = BigInt::from_rng_pm(&two_to_l_plus_e, rng);
+        log!("🧮 hat_n_at_two_to_l_plus_e: {}", hat_n_at_two_to_l_plus_e);
+        let mut alpha = BigInt::from_rng_pm(&two_to_l_plus_e, rng);
+        if alpha.is_negative() {
+            alpha = -alpha;
+        }
+        log!("🧮 alpha: {}", alpha);
         let mu = BigInt::from_rng_pm(&hat_n_at_two_to_l, rng);
+        log!("🧮 mu: {}", mu);
         // TODO: r can be a random from natural set (Z_N)
         let r = BigInt::gen_invertible(data.key.n(), rng);
+        log!("🧮 r: {}", r);
         let gamma = BigInt::from_rng_pm(&hat_n_at_two_to_l_plus_e, rng);
-
+        log!("🧮 gamma: {}", gamma);
         let s = aux.combine(pdata.plaintext, &mu)?;
-        let a = data.key.encrypt_with(&alpha, &r)?;
+        log!("🧮 s: {}", s);
+        let a = match data.key.encrypt_with(&alpha, &r) {
+            Ok(a) => a,
+            Err(e) => {
+                log!("🧮 error: {:?}", e);
+                BigInt::from(0)
+                // return Err(e);
+            }
+        };
+        log!("🧮 a: {}", a);
         let c = aux.combine(&alpha, &gamma)?;
+        log!("🧮 c: {}", c);
 
         Ok((
             Commitment { s, a, c },
@@ -312,8 +340,17 @@ pub mod non_interactive {
         security: &SecurityParams,
         rng: &mut impl rand_core::RngCore,
     ) -> Result<(Commitment, Proof), Error> {
-        let (comm, pcomm) = super::interactive::commit(aux, data, pdata, security, rng)?;
+        log!("🧮 generate commitment");
+        let (comm, pcomm) = match super::interactive::commit(aux, data, pdata, security, rng) {
+            Ok((comm, pcomm)) => (comm, pcomm),
+            Err(e) => {
+                log!("🧮 error: {:?}", e);
+                return Err(e);
+            }
+        };
+        log!("🧮 generate challenge");
         let challenge = challenge::<D>(shared_state, aux, data, &comm, security);
+        log!("🧮 generate proof");
         let proof = super::interactive::prove(data, pdata, &pcomm, &challenge)?;
         Ok((comm, proof))
     }

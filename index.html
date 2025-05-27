@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Paillier ZK WASM Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    button {
+      padding: 10px 15px;
+      margin: 10px 5px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
+    }
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    #output {
+      background-color: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 15px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      min-height: 100px;
+    }
+    .loading {
+      color: #666;
+      font-style: italic;
+    }
+    .worker-status {
+      background-color: #e7f3ff;
+      border: 1px solid #b3d9ff;
+      border-radius: 4px;
+      padding: 10px;
+      margin-bottom: 20px;
+      font-size: 14px;
+    }
+    .worker-status.ready {
+      background-color: #e7ffe7;
+      border-color: #b3ffb3;
+    }
+    .worker-status.error {
+      background-color: #ffe7e7;
+      border-color: #ffb3b3;
+    }
+  </style>
+</head>
+<body>
+  <h1>Paillier ZK WASM Test</h1>
+  <p>This page tests whether the Paillier ZK library works in WebAssembly.</p>
+  
+  <div id="worker-status" class="worker-status">🔄 Initializing web worker...</div>
+  
+  <button id="test-wasm">Test WASM</button>
+  <button id="test-bigint">Test BigInt Operations</button>
+  <button id="test-crypto">Test Crypto Operations</button>
+  <button id="test-paillier-range" disabled>Test Paillier Range Proof (Worker)</button>
+  <button id="test-logging">Test Logging Levels</button>
+  
+  <div id="output">Results will appear here...</div>
+
+  <script>
+    let worker = null;
+    let workerReady = false;
+    
+    // Initialize web worker for heavy computations
+    function initWorker() {
+      worker = new Worker('./paillier-worker.js', { type: 'module' });
+      
+      worker.onmessage = function(e) {
+        const { type, message } = e.data;
+        const output = document.getElementById('output');
+        const button = document.getElementById('test-paillier-range');
+        const statusDiv = document.getElementById('worker-status');
+        
+        switch (type) {
+          case 'ready':
+            workerReady = true;
+            button.disabled = false;
+            statusDiv.textContent = '✅ Web worker ready for heavy computations';
+            statusDiv.className = 'worker-status ready';
+            console.log('Worker ready:', message);
+            break;
+            
+          case 'progress':
+            output.textContent = message;
+            output.className = "loading";
+            break;
+            
+          case 'result':
+            output.textContent = message;
+            output.className = "";
+            button.disabled = false;
+            break;
+            
+          case 'error':
+            output.textContent = message;
+            output.className = "";
+            button.disabled = false;
+            statusDiv.textContent = `❌ Worker error: ${message}`;
+            statusDiv.className = 'worker-status error';
+            break;
+        }
+      };
+      
+      worker.onerror = function(error) {
+        console.error('Worker error:', error);
+        document.getElementById('worker-status').textContent = `❌ Worker failed: ${error.message}`;
+        document.getElementById('worker-status').className = 'worker-status error';
+      };
+      
+      // Initialize the worker
+      worker.postMessage({ type: 'init' });
+    }
+
+    // Load the WASM module for main thread operations
+    async function init() {
+      try {
+        const paillierZk = await import('./pkg/paillier_zk.js');
+        await paillierZk.default();
+        
+        window.paillierZk = paillierZk;
+        console.log("WASM module loaded successfully in main thread");
+        
+        document.getElementById('test-wasm').addEventListener('click', () => {
+          const result = paillierZk.wasm_test();
+          document.getElementById('output').textContent = result;
+        });
+        
+        document.getElementById('test-bigint').addEventListener('click', () => {
+          const result = paillierZk.test_bigint_operations();
+          document.getElementById('output').textContent = result;
+        });
+        
+        document.getElementById('test-crypto').addEventListener('click', () => {
+          const result = paillierZk.test_basic_crypto();
+          document.getElementById('output').textContent = result;
+        });
+        
+        document.getElementById('test-logging').addEventListener('click', () => {
+          const result = paillierZk.test_logging_levels();
+          document.getElementById('output').textContent = result;
+        });
+        
+        // Use web worker for the heavy Paillier range proof computation
+        document.getElementById('test-paillier-range').addEventListener('click', () => {
+          if (!workerReady) {
+            document.getElementById('output').textContent = '❌ Web worker not ready yet. Please wait.';
+            return;
+          }
+          
+          const button = document.getElementById('test-paillier-range');
+          const output = document.getElementById('output');
+          
+          button.disabled = true;
+          output.textContent = "🔄 Sending task to web worker...";
+          output.className = "loading";
+          
+          // Send the task to the worker
+          worker.postMessage({ type: 'test_paillier_range' });
+        });
+        
+        // Initialize the web worker
+        initWorker();
+        
+      } catch (e) {
+        console.error("Failed to load WASM module:", e);
+        document.getElementById('output').textContent = `Error loading WASM: ${e.message}`;
+        document.getElementById('worker-status').textContent = `❌ Failed to load WASM: ${e.message}`;
+        document.getElementById('worker-status').className = 'worker-status error';
+      }
+    }
+    
+    init();
+  </script>
+</body>
+</html> 

@@ -14,7 +14,7 @@ keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 generic-ec = { git = "https://github.com/nxhieu3102/generic-ec", branch = "feat/integrate-cggmp21", features = [
     "udigest",
 ] }
-fast-paillier = { path = "../fast-paillier" }
+fast-paillier = { path = "../fork-fast-paillier" }
 rand_core = { version = "0.6", default-features = false }
 digest = "0.10"
 
@@ -34,6 +34,16 @@ num-integer = "0.1.46"
 num-traits = "0.2.19"
 rand = "0.8"
 bincode = "2.0.1"
+wasm-bindgen = "0.2"
+getrandom = { version = "0.2", features = ["js"] }
+sha2 = { version = "0.10", default-features = false }
+subtle = { version = "2.4", default-features = false }
+zeroize = { version = "1.5", default-features = false }
+
+# WASM logging dependencies
+web-sys = { version = "0.3", features = ["console"] }
+console_log = "1.0"
+log = "0.4"
 
 [dev-dependencies]
 generic-ec = { git = "https://github.com/nxhieu3102/generic-ec", branch = "feat/integrate-cggmp21", features = [
@@ -41,13 +51,10 @@ generic-ec = { git = "https://github.com/nxhieu3102/generic-ec", branch = "feat/
     "all-curves",
 ] }
 rand_dev = { version = "0.1", default-features = false }
-sha2 = { version = "0.10", default-features = false }
-
-subtle = { version = "2.4", default-features = false }
-zeroize = { version = "1.5", default-features = false }
 
 anyhow = "1"
 serde_json = "1"
+wasm-bindgen-test = "0.3"
 
 [features]
 default = []
@@ -60,6 +67,9 @@ serde = [
 
 # This features is exlusively used for `cargo test --doc`
 __internal_doctest = ["serde"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
 
 [[example]]
 name = "pregenerate"
