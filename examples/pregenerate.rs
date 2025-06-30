@@ -13,9 +13,8 @@
 //! The generated keys will be saved in the `test-data` directory.
 
 use anyhow::{Context, Result};
-use rug::{Complete, Integer};
-
-use paillier_zk::IntegerExt;
+use paillier_zk::BigIntExt;
+use num_bigint::BigInt;
 
 fn main() -> Result<()> {
     let mut rng = rand_core::OsRng;
@@ -24,15 +23,15 @@ fn main() -> Result<()> {
     {
         let p = generate_blum_prime(&mut rng, 1024);
         let q = generate_blum_prime(&mut rng, 1024);
-        let n = (&p * &q).complete();
+        let n = &p * &q;
 
         let (s, t) = {
-            let phi_n = (p.clone() - 1u8) * (q.clone() - 1u8);
-            let r = Integer::gen_invertible(&n, &mut rng);
-            let lambda = phi_n.random_below(&mut fast_paillier::utils::external_rand(&mut rng));
+            let phi_n = (&p - BigInt::from(1)) * (&q - BigInt::from(1));
+            let r = BigInt::gen_invertible(&n, &mut rng);
+            let lambda = rng.gen_bigint_range(&BigInt::from(0), &phi_n);
 
-            let t = r.square().modulo(&n);
-            let s = t.pow_mod_ref(&lambda, &n).unwrap().into();
+            let t = (&r * &r).mod_floor(&n);
+            let s = t.modpow_ext(&lambda, &n).unwrap().into();
 
             (s, t)
         };
@@ -101,14 +100,19 @@ fn generate_paillier_key(
 /// security requirements of the proofs. Safe primes MUST BE used intead of blum primes.
 ///
 /// Safe primes can be generated using [`fast_paillier::utils::generate_safe_prime`]
-fn generate_blum_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) -> Integer {
-    loop {
-        let mut n: Integer =
-            Integer::random_bits(bits_size, &mut fast_paillier::utils::external_rand(rng)).into();
-        n.set_bit(bits_size - 1, true);
-        n.next_prime_mut();
-        if n.mod_u(4) == 3 {
-            break n;
-        }
-    }
+fn generate_blum_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) -> BigInt {
+    let prime = fast_paillier::utils::generate_safe_prime(rng, bits_size);
+
+    assert_eq!(
+        &prime % 4,
+        BigInt::from(3),
+        "Blum prime must be congruent to 3 mod 4"
+    );
+    assert_eq!(
+        prime.bits(),
+        bits_size,
+        "Blum prime must have the specified bit size"
+    );
+
+    prime
 }

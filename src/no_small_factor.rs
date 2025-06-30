@@ -82,9 +82,11 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
-use rug::Integer;
-
 pub use crate::common::{Aux, InvalidProof};
+use num_bigint::BigInt;
+
+#[cfg(feature = "serde")]
+use fast_paillier::utils::serializable_bigint;
 
 /// Security parameters for proof. Choosing the values is a tradeoff between
 /// speed and chance of rejecting a valid proof or accepting an invalid proof
@@ -98,26 +100,27 @@ pub struct SecurityParams {
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub q: Integer,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub q: BigInt,
 }
 
 /// Public data that both parties know
 #[derive(Debug, Clone, Copy, udigest::Digestable)]
 pub struct Data<'a> {
     /// N0 - rsa modulus
-    #[udigest(as = &crate::common::encoding::Integer)]
-    pub n: &'a Integer,
+    #[udigest(as = &crate::common::encoding::BigInt)]
+    pub n: &'a BigInt,
     /// A number close to square root of n
-    #[udigest(as = &crate::common::encoding::Integer)]
-    pub n_root: &'a Integer,
+    #[udigest(as = &crate::common::encoding::BigInt)]
+    pub n_root: &'a BigInt,
 }
 
 /// Private data of prover
 #[derive(Debug, Clone, Copy)]
 pub struct PrivateData<'a> {
-    pub p: &'a Integer,
-    pub q: &'a Integer,
+    pub p: &'a BigInt,
+    pub q: &'a BigInt,
 }
 
 /// Prover's data accompanying the commitment. Kept as state between rounds in
@@ -125,55 +128,73 @@ pub struct PrivateData<'a> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PrivateCommitment {
-    pub alpha: Integer,
-    pub beta: Integer,
-    pub mu: Integer,
-    pub nu: Integer,
-    pub r: Integer,
-    pub x: Integer,
-    pub y: Integer,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub alpha: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub beta: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub mu: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub nu: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub r: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub x: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub y: BigInt,
 }
 
 /// Prover's first message, obtained by [`interactive::commit`]
 #[derive(Debug, Clone, udigest::Digestable)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub p: Integer,
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub q: Integer,
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub a: Integer,
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub b: Integer,
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub t: Integer,
-    #[udigest(as = crate::common::encoding::Integer)]
-    pub sigma: Integer,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub p: BigInt,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub q: BigInt,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub a: BigInt,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub b: BigInt,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub t: BigInt,
+    #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub sigma: BigInt,
 }
 
 /// Verifier's challenge to prover. Can be obtained deterministically by
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
-pub type Challenge = Integer;
+pub type Challenge = BigInt;
 
 /// The ZK proof, computed by [`interactive::prove`]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
-    pub z1: Integer,
-    pub z2: Integer,
-    pub w1: Integer,
-    pub w2: Integer,
-    pub v: Integer,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub z1: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub z2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub w1: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub w2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
+    pub v: BigInt,
 }
 
 /// Interactive version of the proof
 pub mod interactive {
+    use num_bigint::BigInt;
     use rand_core::RngCore;
-    use rug::{Complete, Integer};
 
     use crate::{
-        common::{fail_if, fail_if_ne, IntegerExt, InvalidProofReason},
+        common::{fail_if, fail_if_ne, BigIntExt, InvalidProofReason},
         Error,
     };
 
@@ -190,21 +211,21 @@ pub mod interactive {
         security: &SecurityParams,
         mut rng: R,
     ) -> Result<(Commitment, PrivateCommitment), Error> {
-        let two_to_l = (Integer::ONE << security.l).complete();
-        let two_to_l_plus_e = (Integer::ONE << (security.l + security.epsilon)).complete();
-        let n_root_modulo = (&two_to_l_plus_e * data.n_root).complete();
-        let l_n_circ_modulo = (&two_to_l * &aux.rsa_modulo).complete();
-        let l_e_n_circ_modulo = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
-        let n_n_circ = (&aux.rsa_modulo * data.n).complete();
+        let two_to_l = BigInt::from(1) << security.l;
+        let two_to_l_plus_e = BigInt::from(1) << (security.l + security.epsilon);
+        let n_root_modulo = &two_to_l_plus_e * data.n_root;
+        let l_n_circ_modulo = &two_to_l * &aux.rsa_modulo;
+        let l_e_n_circ_modulo = &two_to_l_plus_e * &aux.rsa_modulo;
+        let n_n_circ = &aux.rsa_modulo * data.n;
 
-        let alpha = Integer::from_rng_pm(&n_root_modulo, &mut rng);
-        let beta = Integer::from_rng_pm(&n_root_modulo, &mut rng);
-        let mu = Integer::from_rng_pm(&l_n_circ_modulo, &mut rng);
-        let nu = Integer::from_rng_pm(&l_n_circ_modulo, &mut rng);
-        let sigma = Integer::from_rng_pm(&(&two_to_l * &n_n_circ).complete(), &mut rng);
-        let r = Integer::from_rng_pm(&(&two_to_l_plus_e * &n_n_circ).complete(), &mut rng);
-        let x = Integer::from_rng_pm(&l_e_n_circ_modulo, &mut rng);
-        let y = Integer::from_rng_pm(&l_e_n_circ_modulo, &mut rng);
+        let alpha = BigInt::from_rng_pm(&n_root_modulo, &mut rng);
+        let beta = BigInt::from_rng_pm(&n_root_modulo, &mut rng);
+        let mu = BigInt::from_rng_pm(&l_n_circ_modulo, &mut rng);
+        let nu = BigInt::from_rng_pm(&l_n_circ_modulo, &mut rng);
+        let sigma = BigInt::from_rng_pm(&(&two_to_l * &n_n_circ), &mut rng);
+        let r = BigInt::from_rng_pm(&(&two_to_l_plus_e * &n_n_circ), &mut rng);
+        let x = BigInt::from_rng_pm(&l_e_n_circ_modulo, &mut rng);
+        let y = BigInt::from_rng_pm(&l_e_n_circ_modulo, &mut rng);
 
         let p = aux.combine(pdata.p, &mu)?;
         let q = aux.combine(pdata.q, &nu)?;
@@ -236,7 +257,7 @@ pub mod interactive {
     ///
     /// `security` parameter is used to generate challenge in correct range
     pub fn challenge<R: RngCore>(security: &SecurityParams, rng: &mut R) -> Challenge {
-        Integer::from_rng_pm(&security.q, rng)
+        BigInt::from_rng_pm(&security.q, rng)
     }
 
     /// Compute proof for given data and prior protocol values
@@ -246,13 +267,13 @@ pub mod interactive {
         pcomm: &PrivateCommitment,
         challenge: &Challenge,
     ) -> Result<Proof, Error> {
-        let sigma_circ = (&comm.sigma - &pcomm.nu * pdata.p).complete();
+        let sigma_circ = &comm.sigma - &pcomm.nu * pdata.p;
 
         Ok(Proof {
-            z1: (&pcomm.alpha + challenge * pdata.p).complete(),
-            z2: (&pcomm.beta + challenge * pdata.q).complete(),
-            w1: (&pcomm.x + challenge * &pcomm.mu).complete(),
-            w2: (&pcomm.y + challenge * &pcomm.nu).complete(),
+            z1: (&pcomm.alpha + challenge * pdata.p),
+            z2: (&pcomm.beta + challenge * pdata.q),
+            w1: (&pcomm.x + challenge * &pcomm.mu),
+            w2: (&pcomm.y + challenge * &pcomm.nu),
             v: &pcomm.r + challenge * sigma_circ,
         })
     }
@@ -270,14 +291,14 @@ pub mod interactive {
         {
             let lhs = aux.combine(&proof.z1, &proof.w1)?;
             let p_to_e = aux.pow_mod(&commitment.p, challenge)?;
-            let rhs = (&commitment.a * p_to_e).modulo(&aux.rsa_modulo);
+            let rhs = (&commitment.a * p_to_e) % (&aux.rsa_modulo);
             fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
         }
         // check 2
         {
             let lhs = aux.combine(&proof.z2, &proof.w2)?;
             let q_to_e = aux.pow_mod(&commitment.q, challenge)?;
-            let rhs = (&commitment.b * q_to_e).modulo(&aux.rsa_modulo);
+            let rhs = (&commitment.b * q_to_e) % (&aux.rsa_modulo);
             fail_if_ne(InvalidProofReason::EqualityCheck(2), lhs, rhs)?;
         }
         // check 3
@@ -285,13 +306,13 @@ pub mod interactive {
             let r = aux.combine(data.n, &commitment.sigma)?;
             let q_to_z1 = aux.pow_mod(&commitment.q, &proof.z1)?;
             let t_to_v = aux.pow_mod(&aux.t, &proof.v)?;
-            let lhs = (q_to_z1 * t_to_v).modulo(&aux.rsa_modulo);
+            let lhs = (q_to_z1 * t_to_v) % (&aux.rsa_modulo);
             let rhs = aux
                 .rsa_modulo
-                .combine(&commitment.t, Integer::ONE, &r, challenge)?;
+                .combine(&commitment.t, &BigInt::from(1), &r, challenge)?;
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
         }
-        let range = (Integer::from(1) << (security.l + security.epsilon)) * data.n_root;
+        let range = (BigInt::from(1) << (security.l + security.epsilon)) * data.n_root;
         // range check for z1
         fail_if(InvalidProofReason::RangeCheck(1), proof.z1.is_in_pm(&range))?;
         // range check for z2
@@ -377,11 +398,9 @@ pub mod non_interactive {
 
 #[cfg(test)]
 mod test {
-    use rug::{Complete, Integer};
-
     use crate::common::test::generate_blum_prime;
     use crate::common::InvalidProofReason;
-
+    use num_bigint::BigInt;
     // If q > 2^epsilon, the proof will never pass. We can make l however small
     // we wish though, provided the statement we want to prove holds
 
@@ -392,8 +411,8 @@ mod test {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 256);
         let q = generate_blum_prime(&mut rng, 256);
-        let n = (&p * &q).complete();
-        let n_root = n.sqrt_ref().complete();
+        let n = &p * &q;
+        let n_root = n.sqrt();
         let data = super::Data {
             n: &n,
             n_root: &n_root,
@@ -401,7 +420,7 @@ mod test {
         let security = super::SecurityParams {
             l: 64,
             epsilon: 128,
-            q: (Integer::ONE << 128_u32).complete(),
+            q: BigInt::from(1) << 128,
         };
         let aux = crate::common::test::aux(&mut rng);
         let shared_state = "shared state";
@@ -428,8 +447,8 @@ mod test {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 128);
         let q = generate_blum_prime(&mut rng, 384);
-        let n = (&p * &q).complete();
-        let n_root = n.sqrt_ref().complete();
+        let n = &p * &q;
+        let n_root = n.sqrt();
         let data = super::Data {
             n: &n,
             n_root: &n_root,
@@ -437,7 +456,7 @@ mod test {
         let security = super::SecurityParams {
             l: 4,
             epsilon: 128,
-            q: (Integer::ONE << 128_u32).complete(),
+            q: BigInt::from(1) << 128,
         };
         let aux = crate::common::test::aux(&mut rng);
         let shared_state = "shared state";
@@ -460,14 +479,14 @@ mod test {
 
     #[test]
     fn test_sqrt() {
-        assert_eq!(Integer::from(1).sqrt(), Integer::from(1));
-        assert_eq!(Integer::from(2).sqrt(), Integer::from(1));
-        assert_eq!(Integer::from(3).sqrt(), Integer::from(1));
-        assert_eq!(Integer::from(4).sqrt(), Integer::from(2));
-        assert_eq!(Integer::from(5).sqrt(), Integer::from(2));
-        assert_eq!(Integer::from(6).sqrt(), Integer::from(2));
-        assert_eq!(Integer::from(7).sqrt(), Integer::from(2));
-        assert_eq!(Integer::from(8).sqrt(), Integer::from(2));
-        assert_eq!(Integer::from(9).sqrt(), Integer::from(3));
+        assert_eq!(BigInt::from(1).sqrt(), BigInt::from(1));
+        assert_eq!(BigInt::from(2).sqrt(), BigInt::from(1));
+        assert_eq!(BigInt::from(3).sqrt(), BigInt::from(1));
+        assert_eq!(BigInt::from(4).sqrt(), BigInt::from(2));
+        assert_eq!(BigInt::from(5).sqrt(), BigInt::from(2));
+        assert_eq!(BigInt::from(6).sqrt(), BigInt::from(2));
+        assert_eq!(BigInt::from(7).sqrt(), BigInt::from(2));
+        assert_eq!(BigInt::from(8).sqrt(), BigInt::from(2));
+        assert_eq!(BigInt::from(9).sqrt(), BigInt::from(3));
     }
 }
