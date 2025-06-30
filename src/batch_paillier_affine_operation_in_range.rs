@@ -244,9 +244,14 @@ pub mod interactive {
         let alpha = vec![BigInt::from_rng_pm(&two_to_l_e_t, &mut rng); batch_size];
         let gamma = vec![BigInt::from_rng_pm(&hat_n_at_two_to_l_e_t, &mut rng); batch_size];
         let beta = BigInt::from_rng_pm(&two_to_l_prime_e_t, &mut rng);
-        let r = BigInt::gen_invertible(data.key0.n(), &mut rng);
+        // let r = BigInt::gen_invertible(data.key0.n(), &mut rng);
+
+        // assert_eq!(data.key0.nounce_size(), 512, "nounce size must be 512");
+        let r = fast_paillier::utils::sample_with_size(&mut rng, data.key0.nounce_size());
+        assert_eq!(r.bits() as u32, 512, "nounce size must be 512");
         let delta = BigInt::from_rng_pm(&hat_n_at_two_to_l_prime_e_t, &mut rng);
-        let r_y = BigInt::gen_invertible(data.key1.n(), &mut rng);
+        // let r_y = BigInt::gen_invertible(data.key1.n(), &mut rng);
+        let r_y = fast_paillier::utils::sample_with_size(&mut rng, data.key1.nounce_size());
 
         let beta_enc_key0 = data.key0.encrypt_with(&beta, &r)?;
         // ∏(c_i^alpha_i) * enc_n0(beta, r)
@@ -356,6 +361,8 @@ pub mod interactive {
             .fold(pcomm.r.clone(), |acc, (element, challenge_i)| {
                 acc + element.nonce * challenge_i
             });
+            // .mod_floor(&BigInt::from(2).pow(_data.key0.nounce_size()));
+
 
         let w_y = pdata
             .batch
@@ -364,6 +371,8 @@ pub mod interactive {
             .fold(pcomm.r_y.clone(), |acc, (element, challenge_i)| {
                 acc + element.nonce_y * challenge_i
             });
+            // .mod_floor(&BigInt::from(2).pow(_data.key1.nounce_size()));
+
 
         Ok(Proof {
             z1,
