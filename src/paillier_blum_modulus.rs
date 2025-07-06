@@ -8,7 +8,7 @@
 //! ## Example
 //! ```rust
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! use rug::{Integer, Complete};
+//! use malachite::Integer;
 //! let mut rng = rand_core::OsRng;
 //! # let mut rng = rand_dev::DevRng::new();
 //!

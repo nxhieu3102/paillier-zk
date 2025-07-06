@@ -13,15 +13,9 @@
 //! ## Example
 //!
 //! ```
-//! use paillier_zk::{paillier_encryption_in_range as p, IntegerExt};
-//! use rug::{Integer, Complete};
-//! # mod pregenerated {
-//! #     use super::*;
-//! #     paillier_zk::load_pregenerated_data!(
-//! #         verifier_aux: p::Aux,
-//! #         prover_decryption_key: fast_paillier::DecryptionKey,
-//! #     );
-//! # }
+//! use paillier_zk::{paillier_encryption_in_range as p, integer_ext::IntegerExt};
+//! use malachite::Integer;
+//! use malachite_base::num::basic::traits::One;
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
 //! let shared_state = "some shared state";
@@ -31,17 +25,23 @@
 //!
 //! // 0. Setup: prover and verifier share common Ring-Pedersen parameters:
 //!
-//! let aux: p::Aux = pregenerated::verifier_aux();
+//! // Create a simple Aux for demonstration
+//! let aux = p::Aux {
+//!     s: Integer::from(2),
+//!     t: Integer::from(3),
+//!     rsa_modulo: Integer::from(143), // 11 * 13
+//!     multiexp: None,
+//!     crt: None,
+//! };
 //! let security = p::SecurityParams {
-//!     l: 1024,
-//!     epsilon: 128,
-//!     q: (Integer::ONE << 128_u32).into(),
+//!     l: 64, // Smaller for demo
+//!     epsilon: 64,
+//!     q: Integer::ONE << 64_u32,
 //! };
 //!
 //! // 1. Setup: prover prepares the paillier keys
 //!
-//! let private_key: fast_paillier::DecryptionKey =
-//!     pregenerated::prover_decryption_key();
+//! let private_key = fast_paillier::DecryptionKey::sample_128();
 //! let key = private_key.encryption_key();
 //!
 //! // 2. Setup: prover has some plaintext and encrypts it

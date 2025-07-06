@@ -13,14 +13,10 @@
 //! ## Example
 //!
 //! ```rust
-//! use rug::{Integer, Complete};
+//! use malachite::Integer;
+//! use malachite_base::num::basic::traits::One;
 //! use paillier_zk::no_small_factor::non_interactive as p;
-//! # mod pregenerated {
-//! #     use super::*;
-//! #     paillier_zk::load_pregenerated_data!(
-//! #         verifier_aux: p::Aux,
-//! #     );
-//! # }
+//! use paillier_zk::integer_ext::IntegerExt;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let shared_state = "some shared state";
@@ -30,19 +26,26 @@
 //! // 0. Setup: prover and verifier share common Ring-Pedersen parameters, and
 //! // agree on the level of security
 //!
-//! let aux: p::Aux = pregenerated::verifier_aux();
+//! // Create a simple Aux for demonstration
+//! let aux = p::Aux {
+//!     s: Integer::from(2),
+//!     t: Integer::from(3),
+//!     rsa_modulo: Integer::from(143), // 11 * 13
+//!     multiexp: None,
+//!     crt: None,
+//! };
 //! let security = p::SecurityParams {
 //!     l: 4,
-//!     epsilon: 128,
-//!     q: (Integer::ONE << 128_u32),
+//!     epsilon: 64,
+//!     q: Integer::ONE << 64_u32,
 //! };
 //!
 //! // 1. Prover prepares the data to obtain proof about
 //!
-//! let p = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
-//! let q = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
+//! let p = fast_paillier::utils::generate_safe_prime(&mut rng, 128);
+//! let q = fast_paillier::utils::generate_safe_prime(&mut rng, 128);
 //! let n = (&p * &q);
-//! let n_root = n.sqrt_ref();
+//! let n_root = n.sqrt();
 //! let data = p::Data {
 //!     n: &n,
 //!     n_root: &n_root,
@@ -68,7 +71,7 @@
 //!
 //! # let recv = || (data.n, proof);
 //! let (n, proof) = recv();
-//! let n_root = n.sqrt_ref();;
+//! let n_root = n.sqrt();
 //! let data = p::Data {
 //!     n: &n,
 //!     n_root: &n_root,
