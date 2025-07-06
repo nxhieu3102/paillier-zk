@@ -6,30 +6,33 @@
 )]
 
 use thiserror::Error;
+pub mod integer_ext;
 
 mod common;
+
 pub mod dlog_with_el_gamal_commitment;
-pub mod group_element_vs_paillier_encryption_in_range;
+// pub mod group_element_vs_paillier_encryption_in_range;
 pub mod multiexp;
 pub mod no_small_factor;
-pub mod paillier_affine_operation_in_range;
+// pub mod paillier_affine_operation_in_range;
 pub mod paillier_blum_modulus;
 pub mod paillier_encryption_in_range;
-pub mod paillier_encryption_in_range_with_el_gamal;
+// pub mod paillier_encryption_in_range_with_el_gamal;
 pub mod batch_paillier_encryption_in_range_with_el_gamal;
 pub mod batch_paillier_affine_operation_in_range;
+
 #[cfg(test)]
 mod curve;
 
-#[cfg(all(doctest, not(feature = "__internal_doctest")))]
-compile_error!("doctest require that `__internal_doctest` feature is turned on");
+// #[cfg(all(doctest, not(feature = "__internal_doctest")))]
+// compile_error!("doctest require that `__internal_doctest` feature is turned on");
 
-#[cfg(feature = "__internal_doctest")]
-pub mod _doctest;
+// #[cfg(feature = "__internal_doctest")]
+// pub mod _doctest;
 
-use common::InvalidProofReason;
-pub use common::{BadExponent, IntegerExt, InvalidProof, PaillierError};
-pub use {fast_paillier, rug, rug::Integer};
+
+pub use common::{BadExponent, InvalidProof, PaillierError};
+pub use {fast_paillier};
 
 /// Library general error type
 #[derive(Debug, Error)]

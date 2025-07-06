@@ -34,15 +34,15 @@
 //! let security = p::SecurityParams {
 //!     l: 4,
 //!     epsilon: 128,
-//!     q: (Integer::ONE << 128_u32).complete(),
+//!     q: (Integer::ONE << 128_u32),
 //! };
 //!
 //! // 1. Prover prepares the data to obtain proof about
 //!
 //! let p = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
 //! let q = fast_paillier::utils::generate_safe_prime(&mut rng, 256);
-//! let n = (&p * &q).complete();
-//! let n_root = n.sqrt_ref().complete();
+//! let n = (&p * &q);
+//! let n_root = n.sqrt_ref();
 //! let data = p::Data {
 //!     n: &n,
 //!     n_root: &n_root,
@@ -68,7 +68,7 @@
 //!
 //! # let recv = || (data.n, proof);
 //! let (n, proof) = recv();
-//! let n_root = n.sqrt_ref().complete();;
+//! let n_root = n.sqrt_ref();;
 //! let data = p::Data {
 //!     n: &n,
 //!     n_root: &n_root,
@@ -79,13 +79,10 @@
 //!
 //! If the verification succeeded, verifier can continue communication with prover
 
+pub use crate::common::{Aux, InvalidProof};
+use malachite::Integer;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-
-use rug::Integer;
-
-pub use crate::common::{Aux, InvalidProof};
-
 /// Security parameters for proof. Choosing the values is a tradeoff between
 /// speed and chance of rejecting a valid proof or accepting an invalid proof
 #[derive(Debug, Clone, udigest::Digestable)]
@@ -99,6 +96,10 @@ pub struct SecurityParams {
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
     #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub q: Integer,
 }
 
@@ -125,12 +126,41 @@ pub struct PrivateData<'a> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PrivateCommitment {
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub alpha: Integer,
+
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub beta: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub mu: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub nu: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub r: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub x: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub y: Integer,
 }
 
@@ -139,16 +169,40 @@ pub struct PrivateCommitment {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
     #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub p: Integer,
     #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub q: Integer,
     #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub a: Integer,
     #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub b: Integer,
     #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub t: Integer,
     #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub sigma: Integer,
 }
 
@@ -160,20 +214,43 @@ pub type Challenge = Integer;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub z1: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub z2: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub w1: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub w2: Integer,
+    #[cfg_attr(
+        feature = "serde",
+        serde(with = "fast_paillier::utils::serializable_bigint")
+    )]
     pub v: Integer,
 }
 
 /// Interactive version of the proof
 pub mod interactive {
+    use malachite_base::num::arithmetic::traits::Mod;
     use rand_core::RngCore;
-    use rug::{Complete, Integer};
+    use malachite::Integer;
+    use malachite_base::num::basic::traits::One;
+    use crate::integer_ext::IntegerExt;
 
     use crate::{
-        common::{fail_if, fail_if_ne, IntegerExt, InvalidProofReason},
+        common::{fail_if, fail_if_ne, InvalidProofReason},
         Error,
     };
 
@@ -190,19 +267,19 @@ pub mod interactive {
         security: &SecurityParams,
         mut rng: R,
     ) -> Result<(Commitment, PrivateCommitment), Error> {
-        let two_to_l = (Integer::ONE << security.l).complete();
-        let two_to_l_plus_e = (Integer::ONE << (security.l + security.epsilon)).complete();
-        let n_root_modulo = (&two_to_l_plus_e * data.n_root).complete();
-        let l_n_circ_modulo = (&two_to_l * &aux.rsa_modulo).complete();
-        let l_e_n_circ_modulo = (&two_to_l_plus_e * &aux.rsa_modulo).complete();
-        let n_n_circ = (&aux.rsa_modulo * data.n).complete();
+        let two_to_l = (Integer::ONE << security.l);
+        let two_to_l_plus_e = (Integer::ONE << (security.l + security.epsilon));
+        let n_root_modulo = (&two_to_l_plus_e * data.n_root);
+        let l_n_circ_modulo = (&two_to_l * &aux.rsa_modulo);
+        let l_e_n_circ_modulo = (&two_to_l_plus_e * &aux.rsa_modulo);
+        let n_n_circ = (&aux.rsa_modulo * data.n);
 
         let alpha = Integer::from_rng_pm(&n_root_modulo, &mut rng);
         let beta = Integer::from_rng_pm(&n_root_modulo, &mut rng);
         let mu = Integer::from_rng_pm(&l_n_circ_modulo, &mut rng);
         let nu = Integer::from_rng_pm(&l_n_circ_modulo, &mut rng);
-        let sigma = Integer::from_rng_pm(&(&two_to_l * &n_n_circ).complete(), &mut rng);
-        let r = Integer::from_rng_pm(&(&two_to_l_plus_e * &n_n_circ).complete(), &mut rng);
+        let sigma = Integer::from_rng_pm(&(&two_to_l * &n_n_circ), &mut rng);
+        let r = Integer::from_rng_pm(&(&two_to_l_plus_e * &n_n_circ), &mut rng);
         let x = Integer::from_rng_pm(&l_e_n_circ_modulo, &mut rng);
         let y = Integer::from_rng_pm(&l_e_n_circ_modulo, &mut rng);
 
@@ -246,13 +323,13 @@ pub mod interactive {
         pcomm: &PrivateCommitment,
         challenge: &Challenge,
     ) -> Result<Proof, Error> {
-        let sigma_circ = (&comm.sigma - &pcomm.nu * pdata.p).complete();
+        let sigma_circ = (&comm.sigma - &pcomm.nu * pdata.p);
 
         Ok(Proof {
-            z1: (&pcomm.alpha + challenge * pdata.p).complete(),
-            z2: (&pcomm.beta + challenge * pdata.q).complete(),
-            w1: (&pcomm.x + challenge * &pcomm.mu).complete(),
-            w2: (&pcomm.y + challenge * &pcomm.nu).complete(),
+            z1: (&pcomm.alpha + challenge * pdata.p),
+            z2: (&pcomm.beta + challenge * pdata.q),
+            w1: (&pcomm.x + challenge * &pcomm.mu),
+            w2: (&pcomm.y + challenge * &pcomm.nu),
             v: &pcomm.r + challenge * sigma_circ,
         })
     }
@@ -270,14 +347,14 @@ pub mod interactive {
         {
             let lhs = aux.combine(&proof.z1, &proof.w1)?;
             let p_to_e = aux.pow_mod(&commitment.p, challenge)?;
-            let rhs = (&commitment.a * p_to_e).modulo(&aux.rsa_modulo);
+            let rhs = (&commitment.a * p_to_e).mod_op(&aux.rsa_modulo);
             fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
         }
         // check 2
         {
             let lhs = aux.combine(&proof.z2, &proof.w2)?;
             let q_to_e = aux.pow_mod(&commitment.q, challenge)?;
-            let rhs = (&commitment.b * q_to_e).modulo(&aux.rsa_modulo);
+            let rhs = (&commitment.b * q_to_e).mod_op(&aux.rsa_modulo);
             fail_if_ne(InvalidProofReason::EqualityCheck(2), lhs, rhs)?;
         }
         // check 3
@@ -285,10 +362,10 @@ pub mod interactive {
             let r = aux.combine(data.n, &commitment.sigma)?;
             let q_to_z1 = aux.pow_mod(&commitment.q, &proof.z1)?;
             let t_to_v = aux.pow_mod(&aux.t, &proof.v)?;
-            let lhs = (q_to_z1 * t_to_v).modulo(&aux.rsa_modulo);
+            let lhs = (q_to_z1 * t_to_v).mod_op(&aux.rsa_modulo);
             let rhs = aux
                 .rsa_modulo
-                .combine(&commitment.t, Integer::ONE, &r, challenge)?;
+                .combine(&commitment.t, &Integer::ONE, &r, challenge)?;
             fail_if_ne(InvalidProofReason::EqualityCheck(3), lhs, rhs)?;
         }
         let range = (Integer::from(1) << (security.l + security.epsilon)) * data.n_root;
@@ -377,11 +454,12 @@ pub mod non_interactive {
 
 #[cfg(test)]
 mod test {
-    use rug::{Complete, Integer};
+    use malachite::Integer;
 
     use crate::common::test::generate_blum_prime;
     use crate::common::InvalidProofReason;
-
+    use malachite_base::num::basic::traits::One;
+    use crate::integer_ext::IntegerExt;
     // If q > 2^epsilon, the proof will never pass. We can make l however small
     // we wish though, provided the statement we want to prove holds
 
@@ -392,8 +470,8 @@ mod test {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 256);
         let q = generate_blum_prime(&mut rng, 256);
-        let n = (&p * &q).complete();
-        let n_root = n.sqrt_ref().complete();
+        let n = (&p * &q);
+        let n_root = n.sqrt();
         let data = super::Data {
             n: &n,
             n_root: &n_root,
@@ -401,7 +479,7 @@ mod test {
         let security = super::SecurityParams {
             l: 64,
             epsilon: 128,
-            q: (Integer::ONE << 128_u32).complete(),
+            q: (Integer::ONE << 128_u32),
         };
         let aux = crate::common::test::aux(&mut rng);
         let shared_state = "shared state";
@@ -428,8 +506,8 @@ mod test {
         let mut rng = rand_dev::DevRng::new();
         let p = generate_blum_prime(&mut rng, 128);
         let q = generate_blum_prime(&mut rng, 384);
-        let n = (&p * &q).complete();
-        let n_root = n.sqrt_ref().complete();
+        let n = (&p * &q);
+        let n_root = n.sqrt();
         let data = super::Data {
             n: &n,
             n_root: &n_root,
@@ -437,7 +515,7 @@ mod test {
         let security = super::SecurityParams {
             l: 4,
             epsilon: 128,
-            q: (Integer::ONE << 128_u32).complete(),
+            q: (Integer::ONE << 128_u32),
         };
         let aux = crate::common::test::aux(&mut rng);
         let shared_state = "shared state";

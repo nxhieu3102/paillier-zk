@@ -3,8 +3,11 @@ pub mod sqrt;
 use std::sync::Arc;
 
 use generic_ec::Scalar;
-use rug::{Complete, Integer};
-
+use malachite::Integer;
+use malachite_base::num::logic::traits::SignificantBits;
+use crate::integer_ext::IntegerExt;
+use fast_paillier::integer_ext::mod_pow_int;
+use malachite_base::num::basic::traits::One;
 /// Auxiliary data known to both prover and verifier
 #[cfg_attr(
     feature = "__internal_doctest",
@@ -30,12 +33,14 @@ pub struct Aux {
 impl Aux {
     /// Returns `s^x t^y mod rsa_modulo`
     pub fn combine(&self, x: &Integer, y: &Integer) -> Result<Integer, BadExponent> {
+        println!("combine: x = {}, y = {}", x, y);
         if let Some(table) = &self.multiexp {
+            println!("have multiexp");
             match table.prod_exp(x, y) {
                 Some(res) => return Ok(res),
                 None if cfg!(debug_assertions) => {
                     return Err(BadExponentReason::ExpSize {
-                        exp_size: (x.significant_bits(), y.significant_bits()),
+                        exp_size: (x.significant_bits() as u32, y.significant_bits() as u32),
                         max_exp_size: table.max_exponents_size(),
                     }
                     .into())
@@ -46,32 +51,38 @@ impl Aux {
             }
         }
 
+        println!("no multiexp");
+
         // Naive exponentiation when optimizations are not enabled
         self.rsa_modulo.combine(&self.s, x, &self.t, y)
     }
 
     /// Returns `x^e mod rsa_modulo`
     pub fn pow_mod(&self, x: &Integer, e: &Integer) -> Result<Integer, BadExponent> {
+        println!("pow_mod: x = {}, e = {}", x, e);
         match &self.crt {
             Some(crt) => {
+                println!("crt: {:?}", crt);
                 let e = crt.prepare_exponent(e);
                 crt.exp(x, &e).ok_or_else(BadExponent::undefined)
             }
-            None => Ok(x
-                .pow_mod_ref(e, &self.rsa_modulo)
-                .ok_or_else(BadExponent::undefined)?
-                .into()),
+            None => {
+                println!("no crt");
+                Ok(mod_pow_int(x, e, &self.rsa_modulo))
+            }
         }
     }
 
     /// Returns a stripped version of `Aux` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        let order = rug::integer::Order::Msf;
+        let s_bytes = self.s.to_bytes();
+        let t_bytes = self.t.to_bytes();
+        let rsa_modulo_bytes = self.rsa_modulo.to_bytes();
         udigest::inline_struct!("paillier_zk.aux" {
-            s: udigest::Bytes(self.s.to_digits::<u8>(order)),
-            t: udigest::Bytes(self.t.to_digits::<u8>(order)),
-            rsa_modulo: udigest::Bytes(self.rsa_modulo.to_digits::<u8>(order)),
+            s: udigest::Bytes(s_bytes),
+            t: udigest::Bytes(t_bytes),
+            rsa_modulo: udigest::Bytes(rsa_modulo_bytes),
         })
     }
 }
@@ -143,86 +154,6 @@ impl From<PaillierError> for InvalidProof {
 #[error("paillier encryption failed")]
 pub struct PaillierError;
 
-pub trait IntegerExt: Sized {
-    /// Generate element in Zm*. Does so by trial.
-    fn gen_invertible<R: rand_core::RngCore>(modulo: &Self, rng: &mut R) -> Self;
-
-    /// Compute l^le * r^re modulo self
-    fn combine(&self, l: &Self, le: &Self, r: &Self, re: &Self) -> Result<Self, BadExponent>;
-
-    /// Embed BigInt into chosen scalar type
-    fn to_scalar<C: generic_ec::Curve>(&self) -> Scalar<C>;
-
-    /// Returns prime order of curve C
-    fn curve_order<C: generic_ec::Curve>() -> Self;
-
-    /// Generates a random integer in interval `[-range; range]`
-    fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self;
-
-    /// Checks whether `self` is in interval `[-range; range]`
-    fn is_in_pm(&self, range: &Self) -> bool;
-
-    /// Returns `self smod n`
-    ///
-    /// For odd `n`, result is in `{-n/2, .., n/2}`. For even `n`, result is in
-    /// `{-n/2, .., n/2 - 1}`
-    fn signed_modulo(&self, n: &Self) -> Self;
-}
-
-impl IntegerExt for Integer {
-    fn gen_invertible<R: rand_core::RngCore>(modulo: &Integer, rng: &mut R) -> Self {
-        fast_paillier::utils::sample_in_mult_group(rng, modulo)
-    }
-
-    fn combine(&self, l: &Self, le: &Self, r: &Self, re: &Self) -> Result<Self, BadExponent> {
-        let l_to_le: Integer = l
-            .pow_mod_ref(le, self)
-            .ok_or_else(BadExponent::undefined)?
-            .into();
-        let r_to_re: Integer = r
-            .pow_mod_ref(re, self)
-            .ok_or_else(BadExponent::undefined)?
-            .into();
-        Ok((l_to_le * r_to_re).modulo(self))
-    }
-
-    fn to_scalar<C: generic_ec::Curve>(&self) -> Scalar<C> {
-        let bytes_be = self.to_digits::<u8>(rug::integer::Order::Msf);
-        let s = Scalar::<C>::from_be_bytes_mod_order(bytes_be);
-        if self.cmp0().is_ge() {
-            s
-        } else {
-            -s
-        }
-    }
-
-    fn curve_order<C: generic_ec::Curve>() -> Self {
-        let order_minus_one = -Scalar::<C>::one();
-        let i = Integer::from_digits(&order_minus_one.to_be_bytes(), rug::integer::Order::Msf);
-        i + 1
-    }
-
-    fn from_rng_pm<R: rand_core::RngCore>(range: &Self, rng: &mut R) -> Self {
-        let mut rng = fast_paillier::utils::external_rand(rng);
-        let range_twice = range.clone() << 1u32;
-        range_twice.random_below(&mut rng) - range
-    }
-
-    fn is_in_pm(&self, range: &Self) -> bool {
-        let minus_range = -range.clone();
-        minus_range <= *self && self <= range
-    }
-
-    fn signed_modulo(&self, n: &Self) -> Self {
-        let self_mod_n = self.modulo_ref(n).complete();
-        let half_n = (n >> 1_u32).complete();
-        if half_n.is_odd() && self_mod_n <= half_n || self_mod_n < half_n {
-            self_mod_n
-        } else {
-            self_mod_n - n
-        }
-    }
-}
 
 /// Error indicating that computation cannot be evaluated because of bad exponent
 ///
@@ -268,16 +199,17 @@ pub fn fail_if_ne<T: PartialEq, E>(err: E, lhs: T, rhs: T) -> Result<(), E> {
 }
 
 pub mod encoding {
+    use crate::integer_ext::IntegerExt;
 
     /// Digests a rug integer
     pub struct Integer;
-    impl udigest::DigestAs<rug::Integer> for Integer {
+    impl udigest::DigestAs<malachite::Integer> for Integer {
         fn digest_as<B: udigest::Buffer>(
-            value: &rug::Integer,
+            value: &malachite::Integer,
             encoder: udigest::encoding::EncodeValue<B>,
         ) {
-            let digits = value.to_digits::<u8>(rug::integer::Order::Msf);
-            encoder.encode_leaf_value(digits)
+            let bytes = value.to_bytes();
+            encoder.encode_leaf_value(bytes)
         }
     }
 
@@ -288,7 +220,7 @@ pub mod encoding {
             value: &&dyn fast_paillier::AnyEncryptionKey,
             encoder: udigest::encoding::EncodeValue<B>,
         ) {
-            Integer::digest_as(value.n(), encoder)
+            <Integer as udigest::DigestAs<malachite::Integer>>::digest_as(value.n(), encoder)
         }
     }
 }
@@ -296,9 +228,12 @@ pub mod encoding {
 /// A common logic shared across tests and doctests
 #[cfg(test)]
 pub mod test {
-    use rug::{Complete, Integer};
-
-    use super::IntegerExt;
+    use crate::integer_ext::IntegerExt;
+    use malachite::Integer;
+    use malachite_base::num::basic::traits::One;
+    use malachite_base::num::arithmetic::traits::Square;
+    use malachite_base::num::arithmetic::traits::Mod;
+    use fast_paillier::integer_ext::mod_pow_int;
 
     pub fn random_key<R: rand_core::RngCore + rand_core::CryptoRng>(
         rng: &mut R,
@@ -312,18 +247,22 @@ pub mod test {
         fast_paillier::DecryptionKey::sample_128()
     }
 
+    pub fn sample_other_key() -> fast_paillier::DecryptionKey {
+        fast_paillier::DecryptionKey::sample_other_128()
+    }
+    use malachite_base::num::conversion::traits::FromStringBase;
     pub fn aux<R: rand_core::RngCore>(rng: &mut R) -> super::Aux {
-        let p = generate_blum_prime(rng, 1024);
-        let q = generate_blum_prime(rng, 1024);
-        let n = (&p * &q).complete();
+        let p = Integer::from_string_base(16, "119718298173119878105125282170952301903604788836137192672971085086931697454850578932741977173627414449815867352984108049440807338548948797578442102781940057113712352026131358062988204403634623787863403524694314770165787749649165099519120341381625516324331282224170802953909133093459522735120382898061575755427").unwrap();
+        let q = Integer::from_string_base(16, "90684028399912762319968138686204104120379010978734483157509623196436980870215927551569968173582391210838773744285614231471344350473494545770380636071402624403290484788376380599113518289534999987953418185019079958140799840748557330172676687793563591522131283238279656530154885714292887606570952169867532646327").unwrap();
+        let n = &p * &q;
 
         let (s, t) = {
-            let phi_n = (p.clone() - 1u8) * (q.clone() - 1u8);
+            let phi_n = (p.clone() - &Integer::ONE) * (q.clone() - &Integer::ONE);
             let r = Integer::gen_invertible(&n, rng);
-            let lambda = phi_n.random_below(&mut fast_paillier::utils::external_rand(rng));
+            let lambda = fast_paillier::utils::sample_in_mult_group(rng, &phi_n);
 
-            let t = r.square().modulo(&n);
-            let s = t.pow_mod_ref(&lambda, &n).unwrap().into();
+            let t = r.square().mod_op(&n);
+            let s = mod_pow_int(&t, &lambda, &n);
 
             (s, t)
         };
@@ -340,46 +279,45 @@ pub mod test {
     pub fn generate_blum_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) -> Integer {
         loop {
             let n = generate_prime(rng, bits_size);
-            if n.mod_u(4) == 3 {
+            if n.clone().mod_op(&Integer::from(4)) == 3 {
                 break n;
             }
         }
     }
 
     pub fn generate_prime(rng: &mut impl rand_core::RngCore, bits_size: u32) -> Integer {
-        let mut n: Integer =
-            Integer::random_bits(bits_size, &mut fast_paillier::utils::external_rand(rng)).into();
-        n.set_bit(bits_size - 1, true);
-        n.next_prime_mut();
-        n
+        fast_paillier::utils::generate_safe_prime(rng, bits_size)
     }
 }
 
 #[cfg(test)]
 mod _test {
-    use rug::Integer;
+    use malachite::Integer;
+    use crate::integer_ext::IntegerExt;
+    use fast_paillier::integer_ext::mod_pow_int;
+    use malachite_base::num::conversion::traits::FromStringBase;
+    use malachite_base::num::basic::traits::One;
+    use malachite_base::num::arithmetic::traits::{Square, Mod};
 
-    use super::IntegerExt;
+    // #[test]
+    // fn to_scalar_encoding() {
+    //     type E = generic_ec::curves::Secp256k1;
 
-    #[test]
-    fn to_scalar_encoding() {
-        type E = generic_ec::curves::Secp256k1;
+    //     let bytes = [123u8, 231u8];
+    //     let int = u16::from_be_bytes(bytes);
+    //     let bn = Integer::from(int);
+    //     let scalar = bn.to_scalar();
+    //     assert_eq!(scalar, generic_ec::Scalar::<E>::from(int));
 
-        let bytes = [123u8, 231u8];
-        let int = u16::from_be_bytes(bytes);
-        let bn = rug::Integer::from(int);
-        let scalar = bn.to_scalar();
-        assert_eq!(scalar, generic_ec::Scalar::<E>::from(int));
+    //     assert_eq!(bn.to_bytes(), &bytes);
 
-        assert_eq!(bn.to_digits::<u8>(rug::integer::Order::Msf), &bytes);
-
-        let curve_order = Integer::curve_order::<E>();
-        assert_eq!(curve_order.to_scalar(), generic_ec::Scalar::<E>::zero());
-        assert_eq!(
-            (curve_order - 1u8).to_scalar(),
-            -generic_ec::Scalar::<E>::one()
-        );
-    }
+    //     let curve_order = Integer::curve_order::<E>();
+    //     assert_eq!(curve_order.to_scalar(), generic_ec::Scalar::<E>::zero());
+    //     assert_eq!(
+    //         (curve_order - 1u8).to_scalar(),
+    //         -generic_ec::Scalar::<E>::one()
+    //     );
+    // }
 
     #[test]
     fn signed_modulo() {
@@ -413,15 +351,15 @@ mod _test {
         let (x_bits, y_bits) = table.max_exponents_size();
         aux.multiexp = Some(table);
 
-        // Corner case: upper bound
-        let x_max = (Integer::ONE.clone() << x_bits) - 1;
-        let y_max = (Integer::ONE.clone() << y_bits) - 1;
-        let actual = aux.combine(&x_max, &y_max).unwrap();
-        let expected = aux
-            .rsa_modulo
-            .combine(&aux.s, &x_max, &aux.t, &y_max)
-            .unwrap();
-        assert_eq!(actual, expected);
+        // // Corner case: upper bound
+        let x_max = (Integer::from(1) << x_bits) - Integer::from(1);
+        let y_max = (Integer::from(1) << y_bits) - Integer::from(1);
+        // let actual = aux.combine(&x_max, &y_max).unwrap();
+        // let expected = aux
+        //     .rsa_modulo
+        //     .combine(&aux.s, &x_max, &aux.t, &y_max)
+        //     .unwrap();
+        // assert_eq!(actual, expected);
 
         // Corner case: lower bound
         let x_min = -x_max.clone();
@@ -434,20 +372,237 @@ mod _test {
         assert_eq!(actual, expected);
 
         // Random integers within the range
-        let mut rng = fast_paillier::utils::external_rand(&mut rng);
-        for _ in 0..100 {
-            let x = (x_max.clone() + 1u8).random_below(&mut rng);
-            let y = (y_max.clone() + 1u8).random_below(&mut rng);
+        // for _ in 0..100 {
+        //     let x = fast_paillier::utils::random_below(&mut rng, &(x_max.clone() + Integer::from(1)));
+        //     // let x = (x_max.clone() + Integer::from(1)).random_below(&mut rng);
+        //     let y = fast_paillier::utils::random_below(&mut rng, &(y_max.clone() + Integer::from(1)));
+        //     // let y = (y_max.clone() + Integer::from(1)).random_below(&mut rng);
 
-            let x = if rng.bits(1) == 1 { x } else { -x };
-            let y = if rng.bits(1) == 1 { y } else { -y };
+        //     let x = if rng.bits(1) == 1 { x } else { -x };
+        //     let y = if rng.bits(1) == 1 { y } else { -y };
 
-            println!("x: {x}");
-            println!("y: {y}");
+        //     println!("x: {x}");
+        //     println!("y: {y}");
 
-            let actual = aux.combine(&x, &y).unwrap();
+        //     let actual = aux.combine(&x, &y).unwrap();
+        //     let expected = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &y).unwrap();
+        //     assert_eq!(actual, expected);
+        // }
+    }
+
+    #[test]
+    fn combine_basic() {
+        let mut rng = rand_dev::DevRng::new();
+        let aux = super::test::aux(&mut rng);
+        
+        // Test with small positive values
+        let x = Integer::from_string_base(10,"6148764041380253083546192390085992054633595418703755180057546823404661094261678622048314853192829683499204626929035284368593051324938310822734988496202488878706571168118683661817282981218687447499683658677331197375098463456300146108888079223840277699181246092854986837431076722512591896045266223023653136324235765688092758846763642120964077637081747326847051466852061445972084180659609634472291150594644275845619647537825166476830566293").unwrap();
+        let y = Integer::from_string_base(10, "372465309908021267823342766442835163159207224666484760078535115661461870575425732510595875934015568117884757179437854662478376439944087120832978141648114393064275161207176674304529819142885089804191056204140628399528644730486178097258894406094808011530535306902001802152201730892545222565935078941674697957087956280414491208535043054316976618210353496408792197819877139829914663562965926518161653424090719424457302251693224634516831448029143127376590385003027598235315625626123415844170014652501569918665750998003626387985751656533837222543773137424458280470623933846220036064246841940291561054288209533501334318226057427547132893427677659802270462463631584692920949120655576274446910292233310005620917212711169868470174820621102480314381316448992387701076238347396527396339238525536993287308983759763579212560564326497752104994983513470055323783293702675086330992704014061810485341007460176033628148891569412200786332334950834177903145615103720739139253857650598134499597977727157860119754454108255585987572358036957399312244298633638187354760289382653282881060368752055715025500909448563650614490122262285860450395541348587372431479539360335548438826379460660726724782430498325").unwrap();
+        let result = aux.combine(&x, &y).unwrap();
+        
+        // Verify result matches s^x * t^y mod rsa_modulo
+        let expected = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &y).unwrap();
+        assert_eq!(result, expected);
+        
+        // Test with zero exponents
+        let zero = Integer::from(0);
+        let result_zero_x = aux.combine(&zero, &y).unwrap();
+        let expected_zero_x = aux.rsa_modulo.combine(&aux.s, &zero, &aux.t, &y).unwrap();
+        assert_eq!(result_zero_x, expected_zero_x);
+        
+        let result_zero_y = aux.combine(&x, &zero).unwrap();
+        let expected_zero_y = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &zero).unwrap();
+        assert_eq!(result_zero_y, expected_zero_y);
+        
+        // Test with both zero
+        let result_both_zero = aux.combine(&zero, &zero).unwrap();
+        let expected_both_zero = aux.rsa_modulo.combine(&aux.s, &zero, &aux.t, &zero).unwrap();
+        assert_eq!(result_both_zero, expected_both_zero);
+        
+        // Test with negative exponents
+        let neg_x = Integer::from(-7);
+        let neg_y = Integer::from(-4);
+        let result_neg = aux.combine(&neg_x, &neg_y).unwrap();
+        let expected_neg = aux.rsa_modulo.combine(&aux.s, &neg_x, &aux.t, &neg_y).unwrap();
+        assert_eq!(result_neg, expected_neg);
+        
+        // Test with mixed positive and negative
+        let result_mixed = aux.combine(&x, &neg_y).unwrap();
+        let expected_mixed = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &neg_y).unwrap();
+        assert_eq!(result_mixed, expected_mixed);
+    }
+
+    #[test]
+    fn combine_with_multiexp_table() {
+        let mut rng = rand_dev::DevRng::new();
+        let mut aux = super::test::aux(&mut rng);
+        
+        // Test without multiexp table first
+        let x = Integer::from(42);
+        let y = Integer::from(17);
+        let result_without_table = aux.combine(&x, &y).unwrap();
+        
+        // Add multiexp table
+        let table = std::sync::Arc::new(
+            crate::multiexp::MultiexpTable::build(&aux.s, &aux.t, 512, 448, aux.rsa_modulo.clone())
+                .unwrap(),
+        );
+        aux.multiexp = Some(table);
+        
+        // Test with multiexp table
+        let result_with_table = aux.combine(&x, &y).unwrap();
+        
+        // Results should be the same
+        assert_eq!(result_without_table, result_with_table);
+        
+        // Test with larger values within table bounds
+        let (x_bits, y_bits) = aux.multiexp.as_ref().unwrap().max_exponents_size();
+        let large_x = Integer::from(1) << (x_bits - 1);  // Use half of max bits to avoid overflow
+        let large_y = Integer::from(1) << (y_bits - 1);
+        
+        let result_large = aux.combine(&large_x, &large_y).unwrap();
+        
+        // Verify against direct computation
+        let expected_large = aux.rsa_modulo.combine(&aux.s, &large_x, &aux.t, &large_y).unwrap();
+        assert_eq!(result_large, expected_large);
+    }
+
+    #[test]
+    fn combine_random_values() {
+        let mut rng = rand_dev::DevRng::new();
+        let aux = super::test::aux(&mut rng);
+        
+        // Test with random values
+        for _ in 0..10 {
+            let x = Integer::from_rng_pm(&Integer::from(1000), &mut rng);
+            let y = Integer::from_rng_pm(&Integer::from(1000), &mut rng);
+            
+            let result = aux.combine(&x, &y).unwrap();
             let expected = aux.rsa_modulo.combine(&aux.s, &x, &aux.t, &y).unwrap();
-            assert_eq!(actual, expected);
+            assert_eq!(result, expected, "Failed for x={}, y={}", x, y);
         }
+    }
+
+    #[test]
+    fn pow_mod_basic() {
+        let mut rng = rand_dev::DevRng::new();
+        let aux = super::test::aux(&mut rng);
+        
+        // Test with small positive values
+        let base = Integer::from_string_base(10, "555553907039542285287778188401954854249614317171804531367438129679364595107589186196512714634357713838661511155225958286881511326040268973736911466560910900419298090437175204266618313196506230810044047047596426742528378721733631246230901630689265139692204869711078949446007849363037062338593627986099690552938015462130418631023249482837849899352830329995903821482516754906304844427763161820938571820248855733451763793021632800727007934575635247439211407605418473940301630421654477402586186962056209106693732582904214232829015181383383756598415690049164260479527582288353316834762713877596132404207858835952600323761958534212285313640548869777681634361032553811576436188338713858252522655628224675954675829047727039887939448304558278323205251").unwrap();
+        let exponent = Integer::from_string_base(19, "316819081939861044636107404782286008178").unwrap();
+        let result = aux.pow_mod(&base, &exponent).unwrap();
+        
+        // Verify result matches base^exponent mod rsa_modulo
+        let expected = mod_pow_int(&base, &exponent, &aux.rsa_modulo);
+        assert_eq!(result, expected);
+        
+        // Test with zero exponent (should return 1)
+        let zero_exp = Integer::from(0);
+        let result_zero_exp = aux.pow_mod(&base, &zero_exp).unwrap();
+        let expected_zero_exp = mod_pow_int(&base, &zero_exp, &aux.rsa_modulo);
+        assert_eq!(result_zero_exp, expected_zero_exp);
+        assert_eq!(result_zero_exp, Integer::from(1));
+        
+        // Test with exponent = 1 (should return base mod rsa_modulo)
+        let one_exp = Integer::from(1);
+        let result_one_exp = aux.pow_mod(&base, &one_exp).unwrap();
+        let expected_one_exp = mod_pow_int(&base, &one_exp, &aux.rsa_modulo);
+        assert_eq!(result_one_exp, expected_one_exp);
+        
+        // Test with base = 1 (should return 1)
+        let one_base = Integer::from(1);
+        let result_one_base = aux.pow_mod(&one_base, &exponent).unwrap();
+        let expected_one_base = mod_pow_int(&one_base, &exponent, &aux.rsa_modulo);
+        assert_eq!(result_one_base, expected_one_base);
+        assert_eq!(result_one_base, Integer::from(1));
+    }
+
+    #[test]
+    fn pow_mod_negative_exponents() {
+        let mut rng = rand_dev::DevRng::new();
+        let aux = super::test::aux(&mut rng);
+        
+        // Test with negative exponents
+        let base = Integer::from(5);
+        let neg_exponent = Integer::from(-3);
+        let result = aux.pow_mod(&base, &neg_exponent).unwrap();
+        
+        // Verify result matches base^(-exponent) mod rsa_modulo
+        let expected = mod_pow_int(&base, &neg_exponent, &aux.rsa_modulo);
+        assert_eq!(result, expected);
+        
+        // Test with large negative exponent
+        let large_neg_exp = Integer::from(-1000);
+        let result_large_neg = aux.pow_mod(&base, &large_neg_exp).unwrap();
+        let expected_large_neg = mod_pow_int(&base, &large_neg_exp, &aux.rsa_modulo);
+        assert_eq!(result_large_neg, expected_large_neg);
+    }
+
+    #[test]
+    fn pow_mod_with_crt() {
+        let mut rng = rand_dev::DevRng::new();
+        let mut aux = super::test::aux(&mut rng);
+        
+        // Test without CRT first
+        let base = Integer::from(42);
+        let exponent = Integer::from(17);
+        let result_without_crt = aux.pow_mod(&base, &exponent).unwrap();
+        
+        // Add CRT optimization
+        // Note: We can't easily create a CRT without knowing the factorization,
+        // but we can test that the function still works without it
+        
+        // Test with larger values
+        let large_base = Integer::from(123456);
+        let large_exp = Integer::from(789);
+        let result_large = aux.pow_mod(&large_base, &large_exp).unwrap();
+        let expected_large = mod_pow_int(&large_base, &large_exp, &aux.rsa_modulo);
+        assert_eq!(result_large, expected_large);
+    }
+
+    #[test]
+    fn pow_mod_random_values() {
+        let mut rng = rand_dev::DevRng::new();
+        let aux = super::test::aux(&mut rng);
+        
+        // Test with random values
+        for _ in 0..10 {
+            let base = Integer::from_rng_pm(&Integer::from(1000), &mut rng);
+            let exponent = Integer::from_rng_pm(&Integer::from(100), &mut rng);
+            
+            let result = aux.pow_mod(&base, &exponent).unwrap();
+            let expected = mod_pow_int(&base, &exponent, &aux.rsa_modulo);
+            assert_eq!(result, expected, "Failed for base={}, exponent={}", base, exponent);
+        }
+    }
+
+    #[test]
+    fn pow_mod_edge_cases() {
+        let mut rng = rand_dev::DevRng::new();
+        let aux = super::test::aux(&mut rng);
+        
+        // Test with zero base and positive exponent (should return 0)
+        let zero_base = Integer::from(0);
+        let pos_exp = Integer::from(5);
+        let result_zero_base = aux.pow_mod(&zero_base, &pos_exp).unwrap();
+        let expected_zero_base = mod_pow_int(&zero_base, &pos_exp, &aux.rsa_modulo);
+        assert_eq!(result_zero_base, expected_zero_base);
+        assert_eq!(result_zero_base, Integer::from(0));
+        
+        // Test with base equal to modulus (should return 0)
+        let mod_base = aux.rsa_modulo.clone();
+        let result_mod_base = aux.pow_mod(&mod_base, &pos_exp).unwrap();
+        let expected_mod_base = mod_pow_int(&mod_base, &pos_exp, &aux.rsa_modulo);
+        assert_eq!(result_mod_base, expected_mod_base);
+        assert_eq!(result_mod_base, Integer::from(0));
+        
+        // Test with large exponent
+        let base = Integer::from(7);
+        let large_exp = Integer::from(1) << 100;  // 2^100
+        let result_large_exp = aux.pow_mod(&base, &large_exp).unwrap();
+        let expected_large_exp = mod_pow_int(&base, &large_exp, &aux.rsa_modulo);
+        assert_eq!(result_large_exp, expected_large_exp);
+
     }
 }

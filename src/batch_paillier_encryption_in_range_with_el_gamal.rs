@@ -10,7 +10,7 @@
 //! an elliptic curve to bind randomness and secret values used in the encryption.
 //!
 //! ### Public Inputs
-//! - Verifier’s [`Aux`] data (used for homomorphic commitments).
+//! - Verifier's [`Aux`] data (used for homomorphic commitments).
 //! - [`SecurityParams`] containing $\ell$, $\varepsilon$, $q$, and $t$.
 //! - An elliptic curve implementing the [`Curve`] trait.
 //! - Paillier public encryption key (`key`).
@@ -19,7 +19,7 @@
 //!     - $B = b \cdot G$
 //!     - $X = (ab + \text{plaintext}) \cdot G$
 //!
-//! ### Prover’s Secret Inputs
+//! ### Prover's Secret Inputs
 //! - `plaintext` in range $[-2^\ell, 2^\ell]$
 //! - `nonce` used in Paillier encryption
 //! - Scalars `a`, `b` used in computing ElGamal-style commitments
@@ -34,13 +34,13 @@
 
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce, Plaintext};
 use generic_ec::{Curve, Point, Scalar};
-use rug::Integer;
-
+use malachite::Integer;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 pub use crate::common::Aux;
 pub use crate::common::InvalidProof;
+use crate::integer_ext::IntegerExt;
 
 /// Security parameters for proof. Choosing the values is a tradeoff between
 /// security, speed and correctness
@@ -53,6 +53,7 @@ pub struct SecurityParams {
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
     #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(feature = "serde", serde(with = "fast_paillier::utils::serializable_bigint"))]
     pub q: Integer,
     /// t is size of challenge
     pub t: usize,
@@ -63,6 +64,7 @@ pub struct SecurityParams {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct PublicElement<C: Curve> {
     /// $C$ in paper
+    #[cfg_attr(feature = "serde", serde(with = "fast_paillier::utils::serializable_bigint"))]
     pub ciphertext: Ciphertext,
     /// $B = g^b = g_1^b$ - b is the prover's secret scalar (random)
     pub b: Point<C>,
@@ -74,9 +76,8 @@ impl<C: Curve> PublicElement<C> {
     /// Returns a stripped version of `PublicData` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        let order = rug::integer::Order::Msf;
         udigest::inline_struct!("paillier_zk.public_element" {
-            ciphertext: udigest::Bytes(self.ciphertext.to_digits::<u8>(order)),
+            ciphertext: udigest::Bytes(self.ciphertext.to_bytes()),
             b: udigest::Bytes(self.b.to_bytes(true)),
             x: udigest::Bytes(self.x.to_bytes(true)),
         })
@@ -101,9 +102,8 @@ impl<'a, C: Curve> PublicData<'a, C> {
     /// Returns a stripped version of `PublicData` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        let order = rug::integer::Order::Msf;
         udigest::inline_struct!("paillier_zk.public_data" {
-            key: udigest::Bytes(self.key.n().to_digits::<u8>(order)),
+            key: udigest::Bytes(self.key.n().to_bytes()),
             a: udigest::Bytes(self.a.to_bytes(true)),
             batch: self.batch.iter().map(|e| e.digest_public_data()).collect::<Vec<_>>(),
         })
@@ -133,8 +133,10 @@ pub struct PrivateData<'a, E: Curve> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Commitment<E: Curve> {
     // #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(feature = "serde", serde(with = "fast_paillier::utils::serializable_vec_bigint"))]
     pub s: Vec<Integer>,
     // #[udigest(as = crate::common::encoding::Integer)]
+    #[cfg_attr(feature = "serde", serde(with = "fast_paillier::utils::serializable_bigint"))]
     pub d: Integer,
     pub y: Point<E>,
     pub z: Point<E>,
@@ -144,10 +146,9 @@ impl<C: Curve> Commitment<C> {
     /// Returns a stripped version of `Commitment` that contains only public data which can be digested
     /// via [`udigest::Digestable`]
     pub fn digest_public_data(&self) -> impl udigest::Digestable {
-        let order = rug::integer::Order::Msf;
         udigest::inline_struct!("paillier_zk.commitment" {
-            s: self.s.iter().map(|e| udigest::Bytes(e.to_digits::<u8>(order))).collect::<Vec<_>>(),
-            d: udigest::Bytes(self.d.to_digits::<u8>(order)),
+            s: self.s.iter().map(|e| udigest::Bytes(e.to_bytes())).collect::<Vec<_>>(),
+            d: udigest::Bytes(self.d.to_bytes()),
             y: udigest::Bytes(self.y.to_bytes(true)),
             z: udigest::Bytes(self.z.to_bytes(true)),
         })
@@ -172,8 +173,11 @@ pub type Challenge = Vec<Integer>;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Proof<E: Curve> {
+    #[cfg_attr(feature = "serde", serde(with = "fast_paillier::utils::serializable_bigint"))]
     pub z1: Integer,
+    #[cfg_attr(feature = "serde", serde(with = "fast_paillier::utils::serializable_bigint"))]
     pub z2: Integer,
+    #[cfg_attr(feature = "serde", serde(with = "fast_paillier::utils::serializable_bigint"))]
     pub z3: Integer,
     pub w: Scalar<E>,
 }
@@ -184,14 +188,15 @@ pub struct Proof<E: Curve> {
 pub mod interactive {
     use generic_ec::{Curve, Point, Scalar};
     use rand_core::RngCore;
-    use rug::{Complete, Integer};
-
+    use malachite::Integer;
+    use malachite_base::num::basic::traits::One;
+    use malachite_base::num::arithmetic::traits::Mod;
     use crate::{
         common::{fail_if, fail_if_ne, InvalidProofReason},
-        Error,
+        Error
     };
-
-    use crate::common::{IntegerExt, InvalidProof};
+    use crate::common::InvalidProof;
+    use crate::integer_ext::IntegerExt;
 
     use super::{
         Aux, Challenge, Commitment, PrivateCommitment, PrivateData, Proof, PublicData,
@@ -208,9 +213,9 @@ pub mod interactive {
         batch_size: usize,
     ) -> Result<(Commitment<E>, PrivateCommitment<E>), Error> {
         let two_to_l_plus_e_plus_t =
-            (Integer::ONE << (security.l + security.epsilon + security.t)).complete(); // test not include t
-        let n_j_at_two_to_l = (Integer::ONE << security.l).complete() * &aux.rsa_modulo;
-        let n_j_at_two_to_l_plus_e = (&two_to_l_plus_e_plus_t * &aux.rsa_modulo).complete();
+            Integer::ONE << (security.l + security.epsilon + security.t); // test not include t
+        let n_j_at_two_to_l = (Integer::ONE << security.l) * &aux.rsa_modulo;
+        let n_j_at_two_to_l_plus_e = &two_to_l_plus_e_plus_t * &aux.rsa_modulo;
 
         let alpha = Integer::from_rng_pm(&two_to_l_plus_e_plus_t, rng);
         let gamma = Integer::from_rng_pm(&n_j_at_two_to_l_plus_e, rng);
@@ -355,7 +360,7 @@ pub mod interactive {
                 }
 
                 e_at_s.iter().fold(commitment.s[0].clone(), |acc, e| {
-                    (acc * e).modulo(&aux.rsa_modulo)
+                    (acc * e).mod_op(&aux.rsa_modulo)
                 })
             };
             // let rhs = {
@@ -368,7 +373,7 @@ pub mod interactive {
         fail_if(
             InvalidProofReason::RangeCheck(5),
             proof.z1.is_in_pm(
-                &(Integer::ONE << (security.l + security.epsilon + security.t)).complete(),
+                &(Integer::ONE << (security.l + security.epsilon + security.t)),
             ),
         )?;
 
@@ -394,7 +399,6 @@ pub mod non_interactive {
     use generic_ec::Curve;
 
     use crate::{Error, InvalidProof};
-
     use super::{Aux, Challenge, Commitment, PrivateData, Proof, PublicData, SecurityParams};
 
     /// Compute proof for the given data, producing random commitment and
@@ -461,10 +465,12 @@ pub mod non_interactive {
 #[cfg(test)]
 mod test {
     use generic_ec::{Curve, Point, Scalar};
-    use rug::{Complete, Integer};
+    use malachite::Integer;
+    use malachite_base::num::basic::traits::One;
     use sha2::Digest;
 
-    use crate::common::{IntegerExt, InvalidProofReason};
+    use crate::common::InvalidProofReason;
+    use crate::integer_ext::IntegerExt;
 
     fn run_with<E: Curve, D: Digest>(
         mut rng: &mut impl rand_core::CryptoRngCore,
@@ -544,13 +550,13 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 300,
-            q: (Integer::ONE << 128_u32).complete() - 1,
+            q: (Integer::ONE << 128_u32) - Integer::ONE,
             t: 128,
         };
         let batch_size = 2;
         let plaintext =
             vec![
-                Integer::from_rng_pm(&(Integer::ONE << security.l).complete(), &mut rng);
+                Integer::from_rng_pm(&(Integer::ONE << security.l), &mut rng);
                 batch_size
             ];
         run_with::<C, D>(&mut rng, security, plaintext, batch_size).expect("proof failed");
@@ -561,13 +567,13 @@ mod test {
         let security = super::SecurityParams {
             l: 1024,
             epsilon: 300,
-            q: (Integer::ONE << 128_u32).complete() - 1,
+            q: (Integer::ONE << 128_u32) - Integer::ONE,
             t: 128,
         };
         let batch_size = 2;
         let plaintext = vec![
             Integer::from_rng_pm(
-                &(Integer::ONE << (security.l + security.epsilon + 4)).complete(),
+                &(Integer::ONE << (security.l + security.epsilon + 4)),
                 &mut rng
             );
             batch_size
@@ -589,6 +595,7 @@ mod test {
         failing_test::<generic_ec::curves::Secp256r1, sha2::Sha256>()
     }
 
+    // TODO: Re-enable once curve module is properly set up
     #[test]
     fn passing_million() {
         passing_test::<crate::curve::C, sha2::Sha256>()
