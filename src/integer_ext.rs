@@ -13,6 +13,8 @@ use malachite_nz::integer::random::get_uniform_random_integer_from_inclusive_ran
 use malachite_base::num::arithmetic::traits::Parity;
 use crate::BadExponent;
 use malachite_base::num::arithmetic::traits::FloorSqrt;
+use generic_ec::{Curve};
+
 /// Modular exponentiation for `Integer`.
 ///
 /// This delegates to the already-implemented `ModPow` for `Natural`.
@@ -81,6 +83,12 @@ pub trait IntegerExt: Sized {
 
     /// Returns the square root of `self`
     fn sqrt(&self) -> Self;
+
+    /// Converts `self` to a vector of bytes suitable for scalar representation 
+    fn to_scalar_bytes(&self) -> Vec<u8>;
+
+    /// Converts a scalar to an integer
+    fn from_scalar<E: Curve>(scalar: impl AsRef<Scalar<E>>) -> Self;
 }
 
 
@@ -124,7 +132,7 @@ impl IntegerExt for Integer {
     fn curve_order<C: generic_ec::Curve>() -> Self {
         let order_minus_one = -Scalar::<C>::one();
         let bytes = order_minus_one.to_be_bytes().to_vec();
-        println!("order_minus_one bytes: {:?}", bytes);
+
         
         // Convert bytes to Integer directly
         let mut result = Integer::ZERO;
@@ -132,18 +140,41 @@ impl IntegerExt for Integer {
             result = (result << 8) + Integer::from(byte);
         }
         result = result + Integer::from(1);
-        println!("calculated curve order: {result:?}");
+        result
+    }
+
+    fn to_scalar_bytes(&self) -> Vec<u8> {
+        let bytes = if self == &Integer::ZERO {
+            vec![0u8]
+        } else {
+            // Convert to bytes by repeatedly dividing by 256
+            let mut temp = self.clone();
+            let mut bytes = Vec::new();
+            while temp > Integer::ZERO {
+                let remainder = &temp % Integer::from(256u32);
+                bytes.push(remainder.to_string().parse::<u8>().unwrap());
+                temp = temp / Integer::from(256u32);
+            }
+            bytes.reverse(); // Convert to big-endian
+            bytes
+        };
+        bytes
+    }
+
+    fn from_scalar<E: Curve>(scalar: impl AsRef<Scalar<E>>) -> Self {
+        let bytes = scalar.as_ref().to_be_bytes().to_vec();
+        let mut result = Integer::ZERO;
+        for &byte in bytes.iter() {
+            result = (result << 8) + Integer::from(byte);
+        }
         result
     }
 
     fn to_scalar<C: generic_ec::Curve>(&self) -> Scalar<C> {
         let curve_order = Self::curve_order::<C>();
-        println!("self: {self:?}");
-        println!("curve_order: {curve_order:?}");
         
         // Ensure the value is within [0, curve_order)
         let val = self.mod_op(&curve_order);
-        println!("val after mod_op: {val:?}");
         
         // Convert directly to bytes using a different approach
         // Use the signed representation and convert to bytes
@@ -162,10 +193,7 @@ impl IntegerExt for Integer {
             bytes
         };
         
-        println!("final bytes: {:?}", bytes);
-        
         let scalar = Scalar::<C>::from_be_bytes_mod_order(&bytes);
-        println!("scalar: {scalar:?}");
         scalar
     }
 
@@ -227,9 +255,6 @@ mod tests {
         let scalar: Scalar<Secp256r1> = int_val.to_scalar();
         let positive_scalar: Scalar<Secp256r1> = Integer::from(123456).to_scalar();
         let sum = scalar + positive_scalar;
-        let curve_order = Integer::curve_order::<Secp256r1>();
-        // println!("sum: {sum:?}");
-        // println!("curve_order: {curve_order:?}");
         assert!(sum.is_zero(), "Negative and positive scalar of same magnitude should sum to zero");
     }
 
@@ -246,6 +271,78 @@ mod tests {
         let scalar: Scalar<Secp256r1> = int_val.to_scalar();
         // We can't directly compare, but we can ensure it's not zero and operation is valid
         assert!(!scalar.is_zero(), "Large number should not convert to zero scalar");
+    }
+
+    #[test]
+    fn test_from_scalar_zero() {
+        let scalar: Scalar<Secp256r1> = Scalar::zero();
+        let int_val = Integer::from_scalar(scalar);
+        assert_eq!(int_val, Integer::ZERO, "Zero scalar should convert to zero integer");
+    }
+
+    #[test]
+    fn test_from_scalar_one() {
+        let scalar: Scalar<Secp256r1> = Scalar::one();
+        let int_val = Integer::from_scalar(scalar);
+        assert_eq!(int_val, Integer::ONE, "One scalar should convert to one integer");
+    }
+
+    #[test]
+    fn test_from_scalar_positive() {
+        // Create a scalar from a known integer value
+        let original_int = Integer::from(123456);
+        let scalar: Scalar<Secp256r1> = original_int.to_scalar();
+        let converted_int = Integer::from_scalar(scalar);
+        assert_eq!(converted_int, original_int, "Converting integer to scalar and back should preserve value");
+    }
+    use malachite_base::num::conversion::traits::FromStringBase;
+    #[test]
+    fn test_from_scalar_large_value() {
+        // Test with a large value that's still within the curve order
+        let original_int = Integer::from_string_base(10, "31681908193986104463610740478228600817831681908193986104463610740478228600817831681908193986104463610740478228600817831681908193986104463610740478228600817831681908193986104463610740478228600817831681908193986104463610740478228600817840478228600817831681908193986104463610740478228600817807404782286008178316819081939861044636107404782286008178316819081939861044636107404782286008178316819081939861044636107404782286008178316819081939861044636107404782286008178316819081939861044636107404782286008178404782286008178316819081939861044636107404782286008178").unwrap();
+        let scalar: Scalar<Secp256r1> = original_int.to_scalar();
+        let converted_int = Integer::from_scalar(scalar);
+        
+        // Since to_scalar applies modulo operation, we need to check against the modulo result
+        let curve_order = Integer::curve_order::<Secp256r1>();
+        let expected_int = original_int.mod_op(&curve_order);
+        assert_eq!(converted_int, expected_int, "Large value conversion should be consistent with modulo operation");
+    }
+
+    #[test]
+    fn test_from_scalar_round_trip() {
+        // Test round-trip conversion: Integer -> Scalar -> Integer
+        let test_values = vec![
+            Integer::ZERO,
+            Integer::ONE,
+            Integer::from(42),
+            Integer::from(255),
+            Integer::from(256),
+            Integer::from(65536),
+            Integer::from(1000000),
+        ];
+
+        for original_int in test_values {
+            let scalar: Scalar<Secp256r1> = original_int.to_scalar();
+            let converted_int = Integer::from_scalar(scalar);
+            assert_eq!(converted_int, original_int, "Round-trip conversion should preserve value for {}", original_int);
+        }
+    }
+
+    #[test]
+    fn test_from_scalar_byte_ordering() {
+        // Test that from_scalar correctly handles big-endian byte ordering
+        let scalar: Scalar<Secp256r1> = Scalar::one();
+        let int_val = Integer::from_scalar(scalar);
+        
+        // Convert back to bytes to verify ordering
+        let bytes = scalar.to_be_bytes();
+        let mut expected_int = Integer::ZERO;
+        for &byte in bytes.iter() {
+            expected_int = (expected_int << 8) + Integer::from(byte);
+        }
+        
+        assert_eq!(int_val, expected_int, "from_scalar should correctly handle big-endian byte ordering");
     }
 }
 

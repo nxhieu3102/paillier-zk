@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Paillier ZK WASM Demo</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            max-width: 800px; 
+            margin: 0 auto; 
+            padding: 20px;
+        }
+        .container { 
+            background-color: #f5f5f5; 
+            padding: 20px; 
+            border-radius: 8px; 
+            margin: 10px 0;
+        }
+        button { 
+            background-color: #4CAF50; 
+            color: white; 
+            padding: 10px 20px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            margin: 5px;
+        }
+        button:hover { 
+            background-color: #45a049; 
+        }
+        .result { 
+            background-color: #e8f4f8; 
+            padding: 15px; 
+            border-radius: 4px; 
+            margin: 10px 0;
+            white-space: pre-wrap;
+        }
+        .error { 
+            background-color: #ffebee; 
+            color: #c62828; 
+        }
+        .success { 
+            background-color: #e8f5e8; 
+            color: #2e7d32; 
+        }
+        .console-output {
+            background-color: #1e1e1e;
+            color: #ffffff;
+            padding: 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .console-line {
+            margin: 2px 0;
+        }
+        .log-info { color: #4CAF50; }
+        .log-warn { color: #FF9800; }
+        .log-error { color: #F44336; }
+        .log-debug { color: #2196F3; }
+    </style>
+</head>
+<body>
+    <h1>Paillier ZK WebAssembly Demo</h1>
+    
+    <div class="container">
+        <h2>Welcome to the Paillier ZK WASM Demo</h2>
+        <p>This demo shows the WebAssembly compatibility of the paillier-zk library.</p>
+        <p>The library implements zero-knowledge proofs for Paillier encryption schemes, including batch operations for improved efficiency.</p>
+    </div>
+
+    <div class="container">
+        <h3>Basic Tests</h3>
+        <button onclick="testBasicWasm()">Test Basic WASM</button>
+        <button onclick="testBigIntOperations()">Test BigInt Operations</button>
+        <button onclick="testBasicCrypto()">Test Basic Crypto</button>
+        <button onclick="testLoggingLevels()">Test Logging Levels</button>
+    </div>
+
+    <div class="container">
+        <h3>Batch Paillier Affine Operation Tests</h3>
+        <button onclick="testBatchPaillierAffineOperation()">Test Batch Paillier Affine Operation</button>
+        <button onclick="demoBatchPaillierStructure()">Demo Batch Paillier Structure</button>
+    </div>
+
+    <div class="container">
+        <h3>Console Output</h3>
+        <div id="console-output" class="console-output"></div>
+        <button onclick="clearConsole()">Clear Console</button>
+    </div>
+
+    <div class="container">
+        <h3>Test Results</h3>
+        <div id="result" class="result"></div>
+    </div>
+
+    <script type="module">
+        import init, { 
+            init_logging, 
+            wasm_test, 
+            test_bigint_operations, 
+            test_basic_crypto, 
+            test_logging_levels,
+            test_batch_paillier_affine_operation_in_range,
+            demo_batch_paillier_structure,
+            log_info, 
+            log_warn, 
+            log_error, 
+            log_debug 
+        } from './pkg/paillier_zk.js';
+
+        let wasmModule;
+        
+        // Override console methods to capture output
+        const originalConsole = {
+            log: console.log,
+            warn: console.warn,
+            error: console.error,
+            debug: console.debug
+        };
+
+        function addToConsole(message, type = 'log') {
+            const consoleDiv = document.getElementById('console-output');
+            const line = document.createElement('div');
+            line.className = `console-line log-${type}`;
+            line.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            consoleDiv.appendChild(line);
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+
+        console.log = function(...args) {
+            addToConsole(args.join(' '), 'info');
+            originalConsole.log.apply(console, args);
+        };
+
+        console.warn = function(...args) {
+            addToConsole(args.join(' '), 'warn');
+            originalConsole.warn.apply(console, args);
+        };
+
+        console.error = function(...args) {
+            addToConsole(args.join(' '), 'error');
+            originalConsole.error.apply(console, args);
+        };
+
+        console.debug = function(...args) {
+            addToConsole(args.join(' '), 'debug');
+            originalConsole.debug.apply(console, args);
+        };
+
+        async function initWasm() {
+            try {
+                wasmModule = await init();
+                init_logging();
+                console.log('WASM module loaded successfully!');
+                document.getElementById('result').innerHTML = '<div class="success">WASM module loaded successfully!</div>';
+            } catch (error) {
+                console.error('Failed to load WASM module:', error);
+                document.getElementById('result').innerHTML = '<div class="error">Failed to load WASM module: ' + error.message + '</div>';
+            }
+        }
+
+        function runTest(testName, testFunction) {
+            const resultDiv = document.getElementById('result');
+            try {
+                console.log(`Running ${testName}...`);
+                const result = testFunction();
+                resultDiv.innerHTML = `<div class="success"><strong>${testName} Result:</strong><br>${result}</div>`;
+                console.log(`${testName} completed successfully`);
+            } catch (error) {
+                console.error(`${testName} failed:`, error);
+                resultDiv.innerHTML = `<div class="error"><strong>${testName} Error:</strong><br>${error.message}</div>`;
+            }
+        }
+
+        // Make functions available globally
+        window.testBasicWasm = () => runTest('Basic WASM Test', wasm_test);
+        window.testBigIntOperations = () => runTest('BigInt Operations Test', test_bigint_operations);
+        window.testBasicCrypto = () => runTest('Basic Crypto Test', test_basic_crypto);
+        window.testLoggingLevels = () => runTest('Logging Levels Test', test_logging_levels);
+        window.testBatchPaillierAffineOperation = () => runTest('Batch Paillier Affine Operation Test', test_batch_paillier_affine_operation_in_range);
+        window.demoBatchPaillierStructure = () => runTest('Batch Paillier Structure Demo', demo_batch_paillier_structure);
+
+        window.clearConsole = () => {
+            document.getElementById('console-output').innerHTML = '';
+        };
+
+        // Initialize WASM when page loads
+        initWasm();
+    </script>
+</body>
+</html> 

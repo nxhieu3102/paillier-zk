@@ -8,6 +8,9 @@ repository = "https://github.com/LFDT-Lockness/paillier-zk"
 categories = ["algorithms", "cryptography"]
 keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
@@ -31,6 +34,15 @@ malachite-base = { path = "../fork-malachite/malachite-base" }
 malachite-bigint = { path = "../fork-malachite/malachite-bigint" }
 malachite-nz = { path = "../fork-malachite/malachite-nz" }
 
+# WASM dependencies
+wasm-bindgen = { version = "0.2", optional = true }
+wasm-bindgen-futures = { version = "0.4", optional = true }
+js-sys = { version = "0.3", optional = true }
+web-sys = { version = "0.3", features = ["console"], optional = true }
+console_error_panic_hook = { version = "0.1", optional = true }
+wee_alloc = { version = "0.4", optional = true }
+getrandom = { version = "0.2", features = ["js"], optional = true }
+
 [dev-dependencies]
 generic-ec = { git="https://github.com/nxhieu3102/generic-ec", branch="feat/integrate-cggmp21", features = ["udigest", "all-curves"] }
 rand_dev = { version = "0.1", default-features = false }
@@ -42,6 +54,9 @@ zeroize = { version = "1.5", default-features = false }
 anyhow = "1"
 serde_json = "1"
 
+# WASM test dependencies
+wasm-bindgen-test = "0.3"
+
 [features]
 default = []
 serde = [
@@ -49,6 +64,16 @@ serde = [
     "dep:serde_with",
     "generic-ec/serde",
     "fast-paillier/serde",
+]
+wasm = [
+    "dep:wasm-bindgen",
+    "dep:wasm-bindgen-futures", 
+    "dep:js-sys",
+    "dep:web-sys",
+    "dep:console_error_panic_hook",
+    "dep:wee_alloc",
+    "dep:getrandom",
+    "serde"
 ]
 
 # This features is exlusively used for `cargo test --doc`

@@ -33,25 +33,21 @@ pub struct Aux {
 impl Aux {
     /// Returns `s^x t^y mod rsa_modulo`
     pub fn combine(&self, x: &Integer, y: &Integer) -> Result<Integer, BadExponent> {
-        println!("combine: x = {}, y = {}", x, y);
-        if let Some(table) = &self.multiexp {
-            println!("have multiexp");
-            match table.prod_exp(x, y) {
-                Some(res) => return Ok(res),
-                None if cfg!(debug_assertions) => {
-                    return Err(BadExponentReason::ExpSize {
-                        exp_size: (x.significant_bits() as u32, y.significant_bits() as u32),
-                        max_exp_size: table.max_exponents_size(),
-                    }
-                    .into())
-                }
-                None => {
-                    // When debug assertions are disabled, we fallback to naive exponentiation
-                }
-            }
-        }
-
-        println!("no multiexp");
+        // if let Some(table) = &self.multiexp {
+        //     match table.prod_exp(x, y) {
+        //         Some(res) => return Ok(res),
+        //         None if cfg!(debug_assertions) => {
+        //             return Err(BadExponentReason::ExpSize {
+        //                 exp_size: (x.significant_bits() as u32, y.significant_bits() as u32),
+        //                 max_exp_size: table.max_exponents_size(),
+        //             }
+        //             .into())
+        //         }
+        //         None => {
+        //             // When debug assertions are disabled, we fallback to naive exponentiation
+        //         }
+        //     }
+        // }
 
         // Naive exponentiation when optimizations are not enabled
         self.rsa_modulo.combine(&self.s, x, &self.t, y)
@@ -59,15 +55,12 @@ impl Aux {
 
     /// Returns `x^e mod rsa_modulo`
     pub fn pow_mod(&self, x: &Integer, e: &Integer) -> Result<Integer, BadExponent> {
-        println!("pow_mod: x = {}, e = {}", x, e);
         match &self.crt {
             Some(crt) => {
-                println!("crt: {:?}", crt);
                 let e = crt.prepare_exponent(e);
                 crt.exp(x, &e).ok_or_else(BadExponent::undefined)
             }
             None => {
-                println!("no crt");
                 Ok(mod_pow_int(x, e, &self.rsa_modulo))
             }
         }

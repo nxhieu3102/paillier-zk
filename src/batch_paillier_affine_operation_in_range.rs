@@ -452,7 +452,6 @@ pub mod interactive {
                 },
             );
 
-            std::println!("lhs: {lhs}");
             let rhs = data.batch.iter().zip(challenge.iter()).fold(
                 commitment.a.clone(),
                 |acc, (element, challenge_i)| {
@@ -461,14 +460,10 @@ pub mod interactive {
                 },
             );
 
-            std::println!("rhs: {rhs}");
-
             fail_if_ne(InvalidProofReason::EqualityCheck(1), lhs, rhs)?;
         }
 
         {
-            println!("proof.z1: {:?}", proof.z1);
-            println!("challenge: {:?}", challenge);
             let lhs: Vec<Point<C>> = proof
                 .z1
                 .iter()
@@ -483,7 +478,6 @@ pub mod interactive {
                 .collect();
 
             for (lhs_i, rhs_i) in lhs.iter().zip(rhs.iter()) {
-                std::println!("lhs_i: {lhs_i:?} rhs_i: {rhs_i:?}");
                 fail_if_ne(InvalidProofReason::EqualityCheck(2), lhs_i, rhs_i)?;
             }
         }
@@ -508,7 +502,6 @@ pub mod interactive {
                 .collect();
 
             for (lhs_i, rhs_i) in lhs.iter().zip(rhs.iter()) {
-                println!("lhs_i: {lhs_i:?} rhs_i: {rhs_i:?}");
                 fail_if_ne(InvalidProofReason::EqualityCheck(4), lhs_i, rhs_i)?;
             }
         }
