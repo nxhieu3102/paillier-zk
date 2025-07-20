@@ -86,7 +86,9 @@
 //!
 //! If the verification succeeded, verifier can continue communication with prover
 
-use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
+use fast_paillier::{
+    AnyEncryptionKey, Ciphertext, Nonce, utils::serde_wrapper::{serializable_bigint},
+};
 use num_bigint::BigInt;
 
 #[cfg(feature = "serde")]
@@ -106,6 +108,7 @@ pub struct SecurityParams {
     /// Epsilon in paper, slackness parameter
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub q: BigInt,
 }
 
@@ -135,10 +138,13 @@ pub struct PrivateData<'a> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub s: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub a: BigInt,
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub c: BigInt,
 }
 
@@ -156,14 +162,18 @@ pub struct PrivateCommitment {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = BigInt;
 
+
 // As described in cggmp21 at page 33
 /// The ZK proof. Computed by [`interactive::prove`] or
 /// [`non_interactive::prove`]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z1: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z3: BigInt,
 }
 

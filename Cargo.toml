@@ -14,7 +14,7 @@ keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 generic-ec = { git = "https://github.com/nxhieu3102/generic-ec", branch = "feat/integrate-cggmp21", features = [
     "udigest",
 ] }
-fast-paillier = { path = "../fast-paillier" }
+fast-paillier = { path = "../fork-fast-paillier" }
 rand_core = { version = "0.6", default-features = false }
 digest = "0.10"
 

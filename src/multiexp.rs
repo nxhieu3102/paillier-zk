@@ -3,22 +3,36 @@
 //! Many ZK proofs often require computing `s^x t^y mod N` with s, t, and N being known in advance.
 //! This module provides [`MultiexpTable`] that can compute multiexponent faster.
 
+
 #![allow(non_snake_case)]
+use fast_paillier::{
+    utils::serde_wrapper::{serializable_bigint, serializable_vec_bigint},
+ };
 use crate::common::BigIntExt;
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Pow, Zero};
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Precomputed table for performing faster multiexponentiation
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiexpTable {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     s: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     ell_x: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     s_to_ell_x: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     t: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     ell_y: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     t_to_ell_y: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     N: BigInt,
 }
 

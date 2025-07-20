@@ -56,6 +56,9 @@
 //! ```
 //! If the verification succeeded, V can continue communication with P
 
+use fast_paillier::{
+   utils::serde_wrapper::{serializable_bigint},
+};
 use num_bigint::BigInt;
 
 #[cfg(feature = "serde")]
@@ -66,6 +69,7 @@ use serde::{Deserialize, Serialize};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Data {
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub n: BigInt,
 }
 
@@ -81,6 +85,7 @@ pub struct PrivateData {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Commitment {
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub w: BigInt,
 }
 
@@ -97,9 +102,11 @@ pub struct Challenge<const M: usize> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ProofPoint {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub x: BigInt,
     pub a: bool,
     pub b: bool,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z: BigInt,
 }
 

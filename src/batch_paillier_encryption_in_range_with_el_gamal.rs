@@ -34,6 +34,9 @@
 use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce, Plaintext};
 use generic_ec::{Curve, Point, Scalar};
 use num_bigint::BigInt;
+use fast_paillier::{
+    utils::serde_wrapper::{serializable_bigint, serializable_vec_bigint},
+ };
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -52,6 +55,7 @@ pub struct SecurityParams {
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub q: BigInt,
     /// t is size of challenge
     pub t: usize,
@@ -62,6 +66,7 @@ pub struct SecurityParams {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct PublicElement<C: Curve> {
     /// $C$ in paper
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub ciphertext: Ciphertext,
     /// $B = g^b = g_1^b$ - b is the prover's secret scalar (random)
     pub b: Point<C>,
@@ -130,8 +135,10 @@ pub struct PrivateData<'a, E: Curve> {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Commitment<E: Curve> {
     // #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub s: Vec<BigInt>,
     // #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub d: BigInt,
     pub y: Point<E>,
     pub z: Point<E>,
@@ -164,12 +171,17 @@ pub struct PrivateCommitment<E: Curve> {
 /// [`non_interactive::challenge`] or randomly by [`interactive::challenge`]
 pub type Challenge = Vec<BigInt>;
 
+
+
 /// Range Proof with El-Gamal commitment
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Proof<E: Curve> {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z1: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z3: BigInt,
     pub w: Scalar<E>,
 }

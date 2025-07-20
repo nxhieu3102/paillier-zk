@@ -48,6 +48,9 @@ use fast_paillier::{AnyEncryptionKey, Ciphertext, Nonce};
 use generic_ec::{Curve, Point};
 use num_bigint::BigInt;
 use num_integer::Integer;
+use fast_paillier::{
+    utils::serde_wrapper::{serializable_bigint, serializable_vec_bigint},
+ };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
@@ -66,6 +69,7 @@ pub struct SecurityParams {
     pub epsilon: usize,
     /// q in paper. Security parameter for challenge
     #[udigest(as = crate::common::encoding::BigInt)]
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub q: BigInt,
     /// size of challenge
     pub t: usize,
@@ -74,9 +78,12 @@ pub struct SecurityParams {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct PublicElement<C: Curve> {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub c: Ciphertext,
     pub x: Point<C>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub d: Ciphertext,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub y: Ciphertext,
 }
 
@@ -135,12 +142,18 @@ pub struct PrivateData<'a> {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize), serde(bound = ""))]
 pub struct Commitment<C: Curve> {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub a: Ciphertext,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub s: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub e: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub f: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub t: Vec<BigInt>,
     pub b_x: Vec<Point<C>>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub b_y: BigInt,
 }
 
@@ -183,11 +196,17 @@ pub type Challenge = Vec<BigInt>;
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Proof {
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub z1: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z2: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_vec_bigint"))]
     pub z3: Vec<BigInt>,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub z4: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub w: BigInt,
+    #[cfg_attr(feature = "serde", serde(with = "serializable_bigint"))]
     pub w_y: BigInt,
 }
 
@@ -226,8 +245,8 @@ pub mod interactive {
         let alpha = vec![BigInt::from_rng_pm(&two_to_l_e_t, &mut rng); batch_size];
         let gamma = vec![BigInt::from_rng_pm(&hat_n_at_two_to_l_e_t, &mut rng); batch_size];
         let beta = BigInt::from_rng_pm(&two_to_l_prime_e_t, &mut rng);
-        let r = BigInt::gen_invertible(data.key0.n(), &mut rng);
         let delta = BigInt::from_rng_pm(&hat_n_at_two_to_l_prime_e_t, &mut rng);
+        let r = BigInt::gen_invertible(data.key0.n(), &mut rng);
         let r_y = BigInt::gen_invertible(data.key1.n(), &mut rng);
 
         let beta_enc_key0 = data.key0.encrypt_with(&beta, &r)?;
