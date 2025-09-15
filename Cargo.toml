@@ -11,14 +11,13 @@ keywords = ["paillier", "zk-proofs", "zero-knowledge"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-generic-ec = {git="https://github.com/nxhieu3102/generic-ec", branch="feat/integrate-cggmp21" , features = ["udigest"] }
-fast-paillier = { git = "https://github.com/nxhieu3102/fast-paillier" }
+generic-ec = { git = "https://github.com/nxhieu3102/generic-ec", branch = "feat/integrate-cggmp21", features = [
+    "udigest",
+] }
+fast-paillier = { path = "../fork-fast-paillier" }
 rand_core = { version = "0.6", default-features = false }
 digest = "0.10"
-rug = { version = "1.27", default-features = false, features = [
-    "integer",
-    "rand",
-] }
+
 rand_hash = "0.1"
 thiserror = "1"
 serde = { version = "1", features = ["derive"], optional = true }
@@ -30,9 +29,17 @@ udigest = { version = "0.2.1", default-features = false, features = [
     "derive",
     "alloc",
 ] }
+num-bigint = { version = "0.4.6", features = ["rand"] }
+num-integer = "0.1.46"
+num-traits = "0.2.19"
+rand = "0.8"
+bincode = "2.0.1"
 
 [dev-dependencies]
-generic-ec = { git="https://github.com/nxhieu3102/generic-ec", branch="feat/integrate-cggmp21", features = ["udigest", "all-curves"] }
+generic-ec = { git = "https://github.com/nxhieu3102/generic-ec", branch = "feat/integrate-cggmp21", features = [
+    "udigest",
+    "all-curves",
+] }
 rand_dev = { version = "0.1", default-features = false }
 sha2 = { version = "0.10", default-features = false }
 
@@ -48,7 +55,6 @@ serde = [
     "dep:serde",
     "dep:serde_with",
     "generic-ec/serde",
-    "rug/serde",
     "fast-paillier/serde",
 ]
 

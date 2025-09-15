@@ -1,0 +1,34 @@
+
+running 29 tests
+test common::sqrt::tests::test_basic_jacobi ... ok
+test common::sqrt::tests::test_even_denominator_panics ... ok
+test common::_test::test_modpow_ext ... ok
+test common::sqrt::tests::test_one_a ... ok
+test common::sqrt::tests::test_large_numbers ... ok
+test common::sqrt::tests::test_multiplicativity ... ok
+test common::sqrt::tests::test_zero_a ... ok
+test common::sqrt::tests::test_negative_a ... ok
+test dlog_with_el_gamal_commitment::test::failing_check_1_million ... ok
+test dlog_with_el_gamal_commitment::test::failing_check_2_million ... ok
+test dlog_with_el_gamal_commitment::test::passing_million ... ok
+test multiexp::test::multiexp_works ... ok
+test dlog_with_el_gamal_commitment::test::failing_check_1_p256 ... ok
+test dlog_with_el_gamal_commitment::test::passing_p256 ... ok
+test dlog_with_el_gamal_commitment::test::failing_check_2_p256 ... ok
+test paillier_blum_modulus::test::failing ... ok
+test paillier_blum_modulus::test::passing ... ok
+test paillier_encryption_in_range::test::failing ... ok
+test paillier_encryption_in_range::test::passing ... ok
+test batch_paillier_encryption_in_range_with_el_gamal::test::passing_p256 ... ok
+test batch_paillier_encryption_in_range_with_el_gamal::test::failing_p256_add ... ok
+test batch_paillier_encryption_in_range_with_el_gamal::test::passing_million ... ok
+test batch_paillier_encryption_in_range_with_el_gamal::test::failing_million_add ... ok
+test batch_paillier_affine_operation_in_range::test::passing_p256 ... ok
+test batch_paillier_affine_operation_in_range::test::failing_p256_add ... ok
+test batch_paillier_affine_operation_in_range::test::passing_million ... ok
+test batch_paillier_affine_operation_in_range::test::failing_p256_mul ... ok
+test batch_paillier_affine_operation_in_range::test::failing_million_mul ... ok
+test batch_paillier_affine_operation_in_range::test::failing_million_add ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 24.57s
+
