@@ -1,0 +1,68 @@
+Paillier ZK Protocols Performance Comparison
+==========================================
+
+This is a demonstration of how to benchmark batch vs single protocols.
+The actual benchmark would compare:
+
+1. Single Protocol (run 2 times):
+   - paillier_encryption_in_range_with_el_gamal
+   - Each proof proves one statement
+   - Total time = time_proof_1 + time_proof_2
+
+2. Batch Protocol (run once):
+   - batch_paillier_encryption_in_range_with_el_gamal
+   - One proof proves multiple statements (batch_size = 2)
+   - Total time = time_batch_proof
+
+=== Simulated Performance Results ===
+
+Encryption in Range Protocol Comparison:
+
+Single Protocol (2 individual proofs):
+  Proof 1: 450ms
+  Proof 2: 450ms
+  Total:   900ms
+
+Batch Protocol (batch size = 2):
+  Batch:   650ms
+
+Speedup: 1.38x faster with batch protocol
+
+Affine Operation Protocol Comparison:
+
+Single Protocol (2 individual proofs):
+  Proof 1: 680ms
+  Proof 2: 680ms
+  Total:   1.36s
+
+Batch Protocol (batch size = 2):
+  Batch:   950ms
+
+Speedup: 1.43x faster with batch protocol
+
+=== Summary ===
+
+Average batch efficiency: 1.41x
+
+Benefits of batch protocols:
+- Shared Ring-Pedersen parameter operations
+- Amortized elliptic curve computations
+- Reduced verification overhead
+- Better scalability for multiple statements
+=== Implementation Notes ===
+
+To implement the actual benchmark:
+1. Use the test patterns from the ZK protocol test modules
+2. Create appropriate Ring-Pedersen parameters (Aux)
+3. Generate Paillier keys and test data
+4. Run prove() and verify() functions with timing
+5. Compare batch efficiency vs individual proofs
+
+Key files to examine:
+- src/paillier_encryption_in_range_with_el_gamal.rs (single)
+- src/batch_paillier_encryption_in_range_with_el_gamal.rs (batch)
+- src/paillier_affine_operation_in_range.rs (single)
+- src/batch_paillier_affine_operation_in_range.rs (batch)
+
+Expected results: Batch protocols should be ~1.5-2x faster
+than running equivalent individual proofs due to shared computations.

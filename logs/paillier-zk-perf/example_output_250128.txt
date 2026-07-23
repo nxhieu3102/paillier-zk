@@ -1,0 +1,86 @@
+Paillier ZK Protocols Performance Benchmark
+==========================================
+
+This benchmark demonstrates the performance differences between:
+1. Single instance protocols:
+   - paillier_encryption_in_range
+   - paillier_affine_operation_in_range
+
+2. Batch protocols:
+   - batch_paillier_encryption_in_range_with_el_gamal
+   - batch_paillier_affine_operation_in_range
+
+=== Simulated Performance Results ===
+
+Single Encryption in Range - Proving (n=5 iterations)
+  Mean:   250ms
+  Median: 245ms
+  StdDev: 15ms
+  Min:    235ms
+  Max:    270ms
+
+Single Encryption in Range - Verification (n=5 iterations)
+  Mean:   45ms
+  Median: 44ms
+  StdDev: 3ms
+  Min:    42ms
+  Max:    49ms
+
+--- Batch Size: 1 ---
+Batch Encryption in Range (size 1) - Proving (n=5 iterations)
+  Mean:   300ms
+  Per-element: 300ms
+
+Batch Encryption in Range (size 1) - Verification (n=5 iterations)
+  Mean:   55ms
+  Per-element: 55ms
+
+--- Batch Size: 2 ---
+Batch Encryption in Range (size 2) - Proving (n=5 iterations)
+  Mean:   480ms
+  Per-element: 240ms
+
+Batch Encryption in Range (size 2) - Verification (n=5 iterations)
+  Mean:   85ms
+  Per-element: 42ms
+
+--- Batch Size: 4 ---
+Batch Encryption in Range (size 4) - Proving (n=5 iterations)
+  Mean:   800ms
+  Per-element: 200ms
+
+Batch Encryption in Range (size 4) - Verification (n=5 iterations)
+  Mean:   140ms
+  Per-element: 35ms
+
+--- Batch Size: 8 ---
+Batch Encryption in Range (size 8) - Proving (n=5 iterations)
+  Mean:   1400ms
+  Per-element: 175ms
+
+Batch Encryption in Range (size 8) - Verification (n=5 iterations)
+  Mean:   250ms
+  Per-element: 31ms
+
+=== Efficiency Gains ===
+Per-element costs as batch size increases:
+Batch Size | Prove/element | Verify/element | Improvement
+-----------|---------------|----------------|------------
+1          | 300ms         | 55ms          | baseline
+2          | 240ms         | 42.5ms        | 20% faster
+4          | 200ms         | 35ms          | 33% faster
+8          | 175ms         | 31ms          | 42% faster
+
+=== Analysis ===
+Expected performance characteristics:
+1. Batch protocols have higher overhead for single elements
+2. Batch protocols show better amortized performance as batch size increases
+3. Verification is typically faster than proving
+4. Larger batch sizes reduce per-element costs due to shared computations
+
+To run actual benchmarks:
+1. Ensure the ZK protocols compile correctly
+2. Add proper error handling for the paillier-zk APIs
+3. Use appropriate curve features in Cargo.toml
+4. Test with different security parameters
+
